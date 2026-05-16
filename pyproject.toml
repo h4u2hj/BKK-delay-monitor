@@ -1,0 +1,40 @@
+[project]
+name = "bkk-delay-monitor"
+version = "1.0.0"
+description = "A Flask web application for monitoring and analyzing BKK delay observations."
+authors = [{name = "BKK Delay Monitor Team"}]
+requires-python = ">=3.9"
+dependencies = [
+    "Flask>=3.0,<4",
+    "google-auth>=2.29,<3",
+    "google-cloud-firestore>=2.16,<3",
+    "python-dotenv>=1.0,<2",
+    "requests>=2.31,<3",
+    "tzdata>=2024.1",
+]
+dynamic = ["optional-dependencies"]
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.dynamic]
+optional-dependencies = {dev = {file = ["dev-requirements.txt"]}}
+
+[tool.setuptools.packages.find]
+include = ["bkk_delays*"]
+
+[tool.pytest.ini_options]
+addopts = "-p no:cacheprovider"
+testpaths = ["tests"]
+norecursedirs = [".venv", "pytest-cache-files-*"]
+
+[tool.ruff]
+exclude = [".venv", "pytest-cache-files-*"]
+
+[project.scripts]
+bkk-delays = "bkk_delays.__main__:main"
+
+
+
+
