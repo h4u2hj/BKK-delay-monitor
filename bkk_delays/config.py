@@ -7,7 +7,6 @@ from dataclasses import dataclass
 
 from dotenv import load_dotenv
 
-
 DEFAULT_BKK_API_BASE_URL = "https://futar.bkk.hu/api/query/v1/ws"
 
 _TRUE_VALUES = {"1", "true", "t", "yes", "y", "on"}
@@ -67,13 +66,13 @@ def load_config() -> AppConfig:
     return AppConfig(
         bkk_api_key=os.getenv("BKK_API_KEY", "").strip(),
         bkk_api_base_url=os.getenv("BKK_API_BASE_URL", DEFAULT_BKK_API_BASE_URL).strip()
-        or DEFAULT_BKK_API_BASE_URL,
+                         or DEFAULT_BKK_API_BASE_URL,
         gcp_project_id=os.getenv("GCP_PROJECT_ID", "").strip(),
         firestore_database_id=os.getenv("FIRESTORE_DATABASE_ID", "").strip(),
         bigquery_dataset=os.getenv("BIGQUERY_DATASET", "bkk_analytics").strip()
-        or "bkk_analytics",
+                         or "bkk_analytics",
         bigquery_table=os.getenv("BIGQUERY_TABLE", "delay_observations").strip()
-        or "delay_observations",
+                       or "delay_observations",
         google_application_credentials=os.getenv(
             "GOOGLE_APPLICATION_CREDENTIALS", ""
         ).strip(),

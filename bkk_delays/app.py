@@ -15,9 +15,9 @@ from bkk_delays.models import DelayObservation, Route, Stop
 
 
 def create_app(
-    config: Optional[AppConfig] = None,
-    bkk_client: Optional[BkkApiClient] = None,
-    firestore_repository: Optional[FirestoreRepository] = None,
+        config: Optional[AppConfig] = None,
+        bkk_client: Optional[BkkApiClient] = None,
+        firestore_repository: Optional[FirestoreRepository] = None,
 ) -> Flask:
     logging.basicConfig(
         level=logging.INFO,
@@ -30,7 +30,7 @@ def create_app(
     app.config["APP_CONFIG"] = app_config
     app.config["BKK_CLIENT"] = bkk_client or BkkApiClient(app_config)
     app.config["FIRESTORE_REPOSITORY"] = (
-        firestore_repository or FirestoreRepository(app_config)
+            firestore_repository or FirestoreRepository(app_config)
     )
     app.config["LAST_SEARCH_COLLECTION_BATCH"] = None
 
@@ -123,9 +123,9 @@ def create_app(
 
 
 def _departure_view_model(
-    observation: DelayObservation,
-    route_by_id: dict[str, Route],
-    stop_by_id: dict[str, Stop],
+        observation: DelayObservation,
+        route_by_id: dict[str, Route],
+        stop_by_id: dict[str, Stop],
 ) -> dict[str, str]:
     stop = stop_by_id[observation.stop_id]
     route = route_by_id[observation.route_id]

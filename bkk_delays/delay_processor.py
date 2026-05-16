@@ -8,8 +8,8 @@ from typing import Optional
 
 
 def count_delay_seconds(
-    scheduled_departure: datetime,
-    predicted_departure: datetime,
+        scheduled_departure: datetime,
+        predicted_departure: datetime,
 ) -> int:
     """Count delay with the Phase 4 formula: predicted - scheduled."""
 
@@ -29,12 +29,12 @@ def categorize_delay(delay_seconds: int) -> str:
 
 
 def create_observation_id(
-    collection_run_id: str,
-    trip_id: str,
-    stop_id: str,
-    scheduled_departure: datetime,
-    index: int,
-    collected_at: Optional[datetime] = None,
+        collection_run_id: str,
+        trip_id: str,
+        stop_id: str,
+        scheduled_departure: datetime,
+        index: int,
+        collected_at: Optional[datetime] = None,
 ) -> str:
     if collected_at is not None:
         collected_minute = _round_down_to_minute(collected_at)
@@ -61,10 +61,10 @@ def create_observation_id(
 
 
 def create_observation_duplicate_key(
-    trip_id: str,
-    stop_id: str,
-    scheduled_departure: datetime,
-    collected_at: datetime,
+        trip_id: str,
+        stop_id: str,
+        scheduled_departure: datetime,
+        collected_at: datetime,
 ) -> str:
     collected_minute = _round_down_to_minute(collected_at)
     return "|".join(

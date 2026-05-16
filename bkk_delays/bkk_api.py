@@ -40,9 +40,9 @@ class BkkApiError(RuntimeError):
 
 class BkkApiClient:
     def __init__(
-        self,
-        config: AppConfig,
-        session: Optional[requests.Session] = None,
+            self,
+            config: AppConfig,
+            session: Optional[requests.Session] = None,
     ) -> None:
         self.config = config
         self.session = session or requests.Session()
@@ -74,9 +74,9 @@ class BkkApiClient:
         return parse_station_search_results(payload, limit=limit)
 
     def get_stop_departures(
-        self,
-        stop_id: str,
-        limit: int = 10,
+            self,
+            stop_id: str,
+            limit: int = 10,
     ) -> SearchCollectionBatch:
         cleaned_stop_id = stop_id.strip()
         if not cleaned_stop_id:
@@ -160,8 +160,8 @@ def _format_payload(payload: Any) -> str:
 
 
 def parse_station_search_results(
-    payload: dict[str, Any],
-    limit: int = 8,
+        payload: dict[str, Any],
+        limit: int = 8,
 ) -> list[StationSearchResult]:
     data = _as_dict(payload.get("data"))
     entry = _as_dict(data.get("entry"))
@@ -193,9 +193,9 @@ def parse_station_search_results(
 
 
 def parse_stop_departures(
-    payload: dict[str, Any],
-    stop_id: str,
-    limit: int = 10,
+        payload: dict[str, Any],
+        stop_id: str,
+        limit: int = 10,
 ) -> SearchCollectionBatch:
     started_at = datetime.now(timezone.utc)
     data = _as_dict(payload.get("data"))
@@ -247,13 +247,13 @@ def parse_stop_departures(
 
 
 def _observation_from_stop_time(
-    stop_time: dict[str, Any],
-    fallback_stop_id: str,
-    collection_run_id: str,
-    observation_index: int,
-    stop_references: dict[str, dict[str, Any]],
-    route_references: dict[str, dict[str, Any]],
-    trip_references: dict[str, dict[str, Any]],
+        stop_time: dict[str, Any],
+        fallback_stop_id: str,
+        collection_run_id: str,
+        observation_index: int,
+        stop_references: dict[str, dict[str, Any]],
+        route_references: dict[str, dict[str, Any]],
+        trip_references: dict[str, dict[str, Any]],
 ) -> Optional[tuple[Route, Stop, DelayObservation]]:
     expected_timestamp = _optional_int(stop_time.get("departureTime"))
     if expected_timestamp is None:
@@ -376,9 +376,9 @@ def _dict_items(value: Any) -> list[dict[str, Any]]:
 
 
 def _station_from_reference(
-    fallback_stop_id: str,
-    raw_stop: dict[str, Any],
-    route_references: dict[str, dict[str, Any]],
+        fallback_stop_id: str,
+        raw_stop: dict[str, Any],
+        route_references: dict[str, dict[str, Any]],
 ) -> Optional[StationSearchResult]:
     stop_id = str(raw_stop.get("id") or fallback_stop_id)
     name = str(raw_stop.get("name") or "").strip()

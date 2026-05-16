@@ -1,36 +1,36 @@
 <!doctype html>
 <html lang="en">
-  <head>
+<head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}BKK Delay Monitor{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
-  </head>
-  <body>
-    <header class="topbar">
-      <a class="brand" href="{{ url_for('index') }}">BKK Delay Monitor</a>
-      <nav class="tabs" aria-label="Main navigation">
+</head>
+<body>
+<header class="topbar">
+    <a class="brand" href="{{ url_for('index') }}">BKK Delay Monitor</a>
+    <nav class="tabs" aria-label="Main navigation">
         <a class="tab {{ 'active' if active_page == 'search' else '' }}" href="{{ url_for('index') }}">Search</a>
         <a class="tab {{ 'active' if active_page == 'history' else '' }}" href="{{ url_for('history') }}">History</a>
-      </nav>
-    </header>
+    </nav>
+</header>
 
-    <main>
-      {% block content %}{% endblock %}
-    </main>
-    {% if firebase_config %}
-      <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-app.js";
-        import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-analytics.js";
+<main>
+    {% block content %}{% endblock %}
+</main>
+{% if firebase_config %}
+    <script type="module">
+        import {initializeApp} from "https://www.gstatic.com/firebasejs/12.13.0/firebase-app.js";
+        import {getAnalytics} from "https://www.gstatic.com/firebasejs/12.13.0/firebase-analytics.js";
 
         const firebaseConfig = {{ firebase_config|tojson }};
         const firebaseApp = initializeApp(firebaseConfig);
 
         if (firebaseConfig.measurementId) {
-          getAnalytics(firebaseApp);
+            getAnalytics(firebaseApp);
         }
-      </script>
-    {% endif %}
-    {% block scripts %}{% endblock %}
-  </body>
+    </script>
+{% endif %}
+{% block scripts %}{% endblock %}
+</body>
 </html>

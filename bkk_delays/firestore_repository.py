@@ -46,10 +46,10 @@ class FirestoreSaveSummary:
     @property
     def total_saved(self) -> int:
         return (
-            self.routes_saved
-            + self.stops_saved
-            + self.collection_runs_saved
-            + self.delay_observations_saved
+                self.routes_saved
+                + self.stops_saved
+                + self.collection_runs_saved
+                + self.delay_observations_saved
         )
 
 
@@ -70,10 +70,10 @@ class FirestoreRepository:
     """Save database-ready entity batches to Firestore collections."""
 
     def __init__(
-        self,
-        config: AppConfig,
-        client: Optional[Any] = None,
-        batch_write_limit: int = 450,
+            self,
+            config: AppConfig,
+            client: Optional[Any] = None,
+            batch_write_limit: int = 450,
     ) -> None:
         self.config = config
         self._client = client
@@ -91,8 +91,8 @@ class FirestoreRepository:
                 )
 
     def save_search_collection_batch(
-        self,
-        batch: SearchCollectionBatch,
+            self,
+            batch: SearchCollectionBatch,
     ) -> FirestoreSaveSummary:
         """Upload every normalized entity in a search collection batch."""
 
@@ -119,8 +119,8 @@ class FirestoreRepository:
         return counts
 
     def delay_observation_duplicate_exists(
-        self,
-        observation: DelayObservation,
+            self,
+            observation: DelayObservation,
     ) -> bool:
         """Return true when trip and stop already exist in delay observations."""
 
@@ -131,8 +131,8 @@ class FirestoreRepository:
         return _delay_observation_duplicate_exists(client, observation)
 
     def list_recent_history_entries(
-        self,
-        limit: int = 50,
+            self,
+            limit: int = 50,
     ) -> list[FirestoreHistoryEntry]:
         """Read recent observations from Firestore and join route/stop documents."""
 
@@ -156,7 +156,7 @@ class FirestoreRepository:
 
 
 def search_collection_batch_to_firestore_documents(
-    batch: SearchCollectionBatch,
+        batch: SearchCollectionBatch,
 ) -> FirestoreDocumentBatch:
     """Convert a normalized search batch into Firestore collection documents."""
 
@@ -197,7 +197,7 @@ def stop_to_firestore_document(stop: Stop) -> dict[str, Any]:
 
 
 def collection_run_to_firestore_document(
-    collection_run: CollectionRun,
+        collection_run: CollectionRun,
 ) -> dict[str, Any]:
     return {
         "id": collection_run.id,
@@ -210,7 +210,7 @@ def collection_run_to_firestore_document(
 
 
 def delay_observation_to_firestore_document(
-    observation: DelayObservation,
+        observation: DelayObservation,
 ) -> dict[str, Any]:
     return {
         "id": observation.id,
@@ -236,10 +236,9 @@ def delay_observation_to_firestore_document(
 
 
 def _read_history_entries_transactionally(
-    client: Any,
-    limit: int,
+        client: Any,
+        limit: int,
 ) -> list[FirestoreHistoryEntry]:
-
     transaction = client.transaction()
 
     @firestore.transactional
@@ -263,9 +262,9 @@ def _read_history_entries_transactionally(
 
 
 def _history_entry_from_observation_snapshot(
-    client: Any,
-    transaction: Any,
-    observation_snapshot: Any,
+        client: Any,
+        transaction: Any,
+        observation_snapshot: Any,
 ) -> FirestoreHistoryEntry:
     observation = observation_snapshot.to_dict() or {}
     stop_id = str(observation.get("stop_id") or "")
@@ -295,10 +294,10 @@ def _history_entry_from_observation_snapshot(
 
 
 def _document_data_in_transaction(
-    client: Any,
-    transaction: Any,
-    collection_name: str,
-    document_id: str,
+        client: Any,
+        transaction: Any,
+        collection_name: str,
+        document_id: str,
 ) -> dict[str, Any]:
     if not document_id:
         return {}
@@ -323,9 +322,9 @@ def _format_history_time(value: Any) -> str:
 
 
 def _delay_observation_duplicate_exists(
-    client: Any,
-    observation: DelayObservation,
-    transaction: Optional[Any] = None,
+        client: Any,
+        observation: DelayObservation,
+        transaction: Optional[Any] = None,
 ) -> bool:
     if not observation.id:
         return False
@@ -340,8 +339,8 @@ def _delay_observation_duplicate_exists(
 
 
 def _save_search_collection_batch_transactionally(
-    client: Any,
-    batch: SearchCollectionBatch,
+        client: Any,
+        batch: SearchCollectionBatch,
 ) -> FirestoreSaveSummary:
     transaction = client.transaction()
 
@@ -386,8 +385,8 @@ def _save_search_collection_batch_transactionally(
 
 
 def _document_counts(
-    documents: FirestoreDocumentBatch,
-    duplicate_observations_skipped: int = 0,
+        documents: FirestoreDocumentBatch,
+        duplicate_observations_skipped: int = 0,
 ) -> FirestoreSaveSummary:
     return FirestoreSaveSummary(
         enabled=True,
@@ -400,7 +399,6 @@ def _document_counts(
 
 
 def _build_firestore_client(config: AppConfig) -> Any:
-    
     credentials = _load_service_account_credentials(config)
     client_kwargs = {"project": config.gcp_project_id or None}
     if credentials is not None:

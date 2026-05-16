@@ -3,48 +3,48 @@
 {% block title %}History - BKK Delay Monitor{% endblock %}
 
 {% block content %}
-  <section class="history-page" aria-labelledby="history-title">
-    <div class="history-header">
-      <p class="eyebrow">Firestore history</p>
-      <h1 id="history-title">Stored observations</h1>
-    </div>
+    <section class="history-page" aria-labelledby="history-title">
+        <div class="history-header">
+            <p class="eyebrow">Firestore history</p>
+            <h1 id="history-title">Stored observations</h1>
+        </div>
 
-    {% if history_error %}
-      <div class="departures-message" role="alert">{{ history_error }}</div>
-    {% endif %}
+        {% if history_error %}
+            <div class="departures-message" role="alert">{{ history_error }}</div>
+        {% endif %}
 
-    {% if observations %}
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Station</th>
-              <th>Route</th>
-              <th>Destination</th>
-              <th>Expected departure</th>
-              <th>Real-time departure</th>
-              <th>Delay seconds</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for observation in observations %}
-              <tr>
-                <td>{{ observation.station_name }}</td>
-                <td>{{ observation.route_short_name }}</td>
-                <td>{{ observation.destination_name }}</td>
-                <td>{{ observation.expected_departure }}</td>
-                <td>{{ observation.realtime_departure }}</td>
-                <td>{{ observation.delay_seconds }}</td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    {% else %}
-      <div class="empty-state">
-        <h2>No history yet</h2>
-        <p>Firestore observations will appear here after a persisted station lookup.</p>
-      </div>
-    {% endif %}
-  </section>
+        {% if observations %}
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                    <tr>
+                        <th>Station</th>
+                        <th>Route</th>
+                        <th>Destination</th>
+                        <th>Expected departure</th>
+                        <th>Real-time departure</th>
+                        <th>Delay seconds</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for observation in observations %}
+                        <tr>
+                            <td>{{ observation.station_name }}</td>
+                            <td>{{ observation.route_short_name }}</td>
+                            <td>{{ observation.destination_name }}</td>
+                            <td>{{ observation.expected_departure }}</td>
+                            <td>{{ observation.realtime_departure }}</td>
+                            <td>{{ observation.delay_seconds }}</td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="empty-state">
+                <h2>No history yet</h2>
+                <p>Firestore observations will appear here after a persisted station lookup.</p>
+            </div>
+        {% endif %}
+    </section>
 {% endblock %}

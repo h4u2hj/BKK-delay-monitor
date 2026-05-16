@@ -3,169 +3,173 @@
 {% block title %}Search Station - BKK Delay Monitor{% endblock %}
 
 {% block content %}
-  <section class="search-page" aria-labelledby="search-title">
-    <div class="search-panel">
-      <p class="eyebrow">Station lookup</p>
-      <h1 id="search-title">Find a BKK station</h1>
-      <form class="search-form" role="search" method="get" action="{{ url_for('index') }}">
-        <label class="sr-only" for="station-search">Station name</label>
-        <div class="station-search-field">
-          <input id="station-search" name="station" type="search" placeholder="Search for a station..." autocomplete="off" aria-controls="station-results" aria-expanded="false" value="{{ selected_station_name }}">
-          <input id="station-id" name="station_id" type="hidden" value="{{ selected_station_id }}">
-          <div id="station-results" class="station-results" role="listbox" aria-label="Station search results" hidden></div>
+    <section class="search-page" aria-labelledby="search-title">
+        <div class="search-panel">
+            <p class="eyebrow">Station lookup</p>
+            <h1 id="search-title">Find a BKK station</h1>
+            <form class="search-form" role="search" method="get" action="{{ url_for('index') }}">
+                <label class="sr-only" for="station-search">Station name</label>
+                <div class="station-search-field">
+                    <input id="station-search" name="station" type="search" placeholder="Search for a station..."
+                           autocomplete="off" aria-controls="station-results" aria-expanded="false"
+                           value="{{ selected_station_name }}">
+                    <input id="station-id" name="station_id" type="hidden" value="{{ selected_station_id }}">
+                    <div id="station-results" class="station-results" role="listbox" aria-label="Station search results"
+                         hidden></div>
+                </div>
+                <button id="station-submit" type="submit" {{ 'disabled' if not selected_station_id else '' }}>Get
+                </button>
+            </form>
+            <p id="station-status" class="station-status" aria-live="polite"></p>
+
+            {% if persistence_error %}
+                <div class="departures-message" role="alert">{{ persistence_error }}</div>
+            {% endif %}
+
+            {% if departure_error %}
+                <div class="departures-message" role="alert">{{ departure_error }}</div>
+            {% elif selected_station_id and departures %}
+                <section class="departures-panel" aria-labelledby="departures-title">
+                    <div class="departures-header">
+                        <p class="eyebrow">Next departures</p>
+                        <h2 id="departures-title">{{ departures[0].stop_name }}</h2>
+                    </div>
+                    <div class="table-wrap">
+                        <table class="departures-table">
+                            <thead>
+                            <tr>
+                                <th>Stop</th>
+                                <th>Route</th>
+                                <th>Destination</th>
+                                <th>Expected departure</th>
+                                <th>Real-time departure</th>
+                                <th>Delay seconds</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {% for departure in departures %}
+                                <tr>
+                                    <td>{{ departure.stop_name }}</td>
+                                    <td>{{ departure.route_short_name }}</td>
+                                    <td>{{ departure.destination_name }}</td>
+                                    <td>{{ departure.expected_departure }}</td>
+                                    <td>{{ departure.realtime_departure }}</td>
+                                    <td>{{ departure.delay_seconds }}</td>
+                                </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            {% elif selected_station_id %}
+                <div class="departures-message">No departures found for this stop.</div>
+            {% endif %}
         </div>
-        <button id="station-submit" type="submit" {{ 'disabled' if not selected_station_id else '' }}>Get</button>
-      </form>
-      <p id="station-status" class="station-status" aria-live="polite"></p>
-
-      {% if persistence_error %}
-        <div class="departures-message" role="alert">{{ persistence_error }}</div>
-      {% endif %}
-
-      {% if departure_error %}
-        <div class="departures-message" role="alert">{{ departure_error }}</div>
-      {% elif selected_station_id and departures %}
-        <section class="departures-panel" aria-labelledby="departures-title">
-          <div class="departures-header">
-            <p class="eyebrow">Next departures</p>
-            <h2 id="departures-title">{{ departures[0].stop_name }}</h2>
-          </div>
-          <div class="table-wrap">
-            <table class="departures-table">
-              <thead>
-                <tr>
-                  <th>Stop</th>
-                  <th>Route</th>
-                  <th>Destination</th>
-                  <th>Expected departure</th>
-                  <th>Real-time departure</th>
-                  <th>Delay seconds</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for departure in departures %}
-                  <tr>
-                    <td>{{ departure.stop_name }}</td>
-                    <td>{{ departure.route_short_name }}</td>
-                    <td>{{ departure.destination_name }}</td>
-                    <td>{{ departure.expected_departure }}</td>
-                    <td>{{ departure.realtime_departure }}</td>
-                    <td>{{ departure.delay_seconds }}</td>
-                  </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      {% elif selected_station_id %}
-        <div class="departures-message">No departures found for this stop.</div>
-      {% endif %}
-    </div>
-  </section>
+    </section>
 {% endblock %}
 
 {% block scripts %}
-  <script>
-    const stationInput = document.querySelector("#station-search");
-    const stationIdInput = document.querySelector("#station-id");
-    const stationResults = document.querySelector("#station-results");
-    const stationStatus = document.querySelector("#station-status");
-    const stationSubmit = document.querySelector("#station-submit");
-    let stationSearchTimer;
-    let stationSearchController;
+    <script>
+        const stationInput = document.querySelector("#station-search");
+        const stationIdInput = document.querySelector("#station-id");
+        const stationResults = document.querySelector("#station-results");
+        const stationStatus = document.querySelector("#station-status");
+        const stationSubmit = document.querySelector("#station-submit");
+        let stationSearchTimer;
+        let stationSearchController;
 
-    function clearStationSelection() {
-      stationIdInput.value = "";
-      stationSubmit.disabled = true;
-    }
-
-    function closeStationResults() {
-      stationResults.hidden = true;
-      stationResults.innerHTML = "";
-      stationInput.setAttribute("aria-expanded", "false");
-    }
-
-    function renderStations(stations) {
-      stationResults.innerHTML = "";
-      if (!stations.length) {
-        closeStationResults();
-        stationStatus.textContent = "No matching stations found.";
-        return;
-      }
-
-      for (const station of stations) {
-        const option = document.createElement("button");
-        option.type = "button";
-        option.className = "station-option";
-        option.setAttribute("role", "option");
-        option.dataset.stationId = station.id;
-        option.dataset.stationName = station.name;
-
-        const name = document.createElement("span");
-        name.className = "station-option-name";
-        name.textContent = station.name;
-
-        const meta = document.createElement("span");
-        meta.className = "station-option-meta";
-        meta.textContent = [station.code, station.route_number].filter(Boolean).join(" / ");
-
-        option.append(name, meta);
-        option.addEventListener("click", () => {
-          stationInput.value = station.name;
-          stationIdInput.value = station.id;
-          stationSubmit.disabled = false;
-          stationStatus.textContent = `Selected station ID: ${station.id}`;
-          closeStationResults();
-        });
-        stationResults.append(option);
-      }
-
-      stationResults.hidden = false;
-      stationInput.setAttribute("aria-expanded", "true");
-      stationStatus.textContent = "";
-    }
-
-    async function searchStations(query) {
-      if (stationSearchController) {
-        stationSearchController.abort();
-      }
-      stationSearchController = new AbortController();
-      stationStatus.textContent = "Searching...";
-
-      try {
-        const response = await fetch(`/api/stations?q=${encodeURIComponent(query)}`, {  
-          signal: stationSearchController.signal,
-        });
-        const payload = await response.json();
-        if (!response.ok) {
-          throw new Error(payload.error || "Station search failed.");
+        function clearStationSelection() {
+            stationIdInput.value = "";
+            stationSubmit.disabled = true;
         }
-        renderStations(payload.stations || []);
-      } catch (error) {
-        if (error.name === "AbortError") {
-          return;
+
+        function closeStationResults() {
+            stationResults.hidden = true;
+            stationResults.innerHTML = "";
+            stationInput.setAttribute("aria-expanded", "false");
         }
-        closeStationResults();
-        stationStatus.textContent = error.message;
-      }
-    }
 
-    stationInput.addEventListener("input", () => {
-      clearStationSelection();
-      window.clearTimeout(stationSearchTimer);
-      const query = stationInput.value.trim();
-      if (query.length <= 3) {
-        closeStationResults();
-        stationStatus.textContent = "";
-        return;
-      }
-      stationSearchTimer = window.setTimeout(() => searchStations(query), 250);
-    });
+        function renderStations(stations) {
+            stationResults.innerHTML = "";
+            if (!stations.length) {
+                closeStationResults();
+                stationStatus.textContent = "No matching stations found.";
+                return;
+            }
 
-    document.addEventListener("click", (event) => {
-      if (!event.target.closest(".station-search-field")) {
-        closeStationResults();
-      }
-    });
-  </script>
+            for (const station of stations) {
+                const option = document.createElement("button");
+                option.type = "button";
+                option.className = "station-option";
+                option.setAttribute("role", "option");
+                option.dataset.stationId = station.id;
+                option.dataset.stationName = station.name;
+
+                const name = document.createElement("span");
+                name.className = "station-option-name";
+                name.textContent = station.name;
+
+                const meta = document.createElement("span");
+                meta.className = "station-option-meta";
+                meta.textContent = [station.code, station.route_number].filter(Boolean).join(" / ");
+
+                option.append(name, meta);
+                option.addEventListener("click", () => {
+                    stationInput.value = station.name;
+                    stationIdInput.value = station.id;
+                    stationSubmit.disabled = false;
+                    stationStatus.textContent = `Selected station ID: ${station.id}`;
+                    closeStationResults();
+                });
+                stationResults.append(option);
+            }
+
+            stationResults.hidden = false;
+            stationInput.setAttribute("aria-expanded", "true");
+            stationStatus.textContent = "";
+        }
+
+        async function searchStations(query) {
+            if (stationSearchController) {
+                stationSearchController.abort();
+            }
+            stationSearchController = new AbortController();
+            stationStatus.textContent = "Searching...";
+
+            try {
+                const response = await fetch(`/api/stations?q=${encodeURIComponent(query)}`, {
+                    signal: stationSearchController.signal,
+                });
+                const payload = await response.json();
+                if (!response.ok) {
+                    throw new Error(payload.error || "Station search failed.");
+                }
+                renderStations(payload.stations || []);
+            } catch (error) {
+                if (error.name === "AbortError") {
+                    return;
+                }
+                closeStationResults();
+                stationStatus.textContent = error.message;
+            }
+        }
+
+        stationInput.addEventListener("input", () => {
+            clearStationSelection();
+            window.clearTimeout(stationSearchTimer);
+            const query = stationInput.value.trim();
+            if (query.length <= 3) {
+                closeStationResults();
+                stationStatus.textContent = "";
+                return;
+            }
+            stationSearchTimer = window.setTimeout(() => searchStations(query), 250);
+        });
+
+        document.addEventListener("click", (event) => {
+            if (!event.target.closest(".station-search-field")) {
+                closeStationResults();
+            }
+        });
+    </script>
 {% endblock %}

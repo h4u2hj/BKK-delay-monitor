@@ -48,11 +48,11 @@ class CollectionSummary:
 
 
 def run_collection(
-    config: Optional[AppConfig] = None,
-    bkk_client: Optional[BkkApiClient] = None,
-    firestore_repository: Optional[FirestoreRepository] = None,
-    monitored_stops: Sequence[MonitoredStop] = MONITORED_STOPS,
-    departure_limit: int = DEFAULT_DEPARTURE_LIMIT,
+        config: Optional[AppConfig] = None,
+        bkk_client: Optional[BkkApiClient] = None,
+        firestore_repository: Optional[FirestoreRepository] = None,
+        monitored_stops: Sequence[MonitoredStop] = MONITORED_STOPS,
+        departure_limit: int = DEFAULT_DEPARTURE_LIMIT,
 ) -> CollectionSummary:
     """Fetch departures for monitored stops and persist them to Firestore."""
 
