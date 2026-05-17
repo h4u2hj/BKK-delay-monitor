@@ -6,6 +6,7 @@ from bkk_delays.bigquery_repository import (
     AverageDelayByStop,
     BigQueryStatistics,
     DelayedRatioByPeriod,
+    PredictedDelayByStation,
     ProblematicStop,
 )
 from bkk_delays.config import AppConfig
@@ -28,7 +29,6 @@ def _test_config() -> AppConfig:
         firestore_database_id="",
         bigquery_dataset="bkk_analytics",
         bigquery_table="delay_observations",
-        google_application_credentials="",
         use_firestore=False,
         use_bigquery=False,
         use_sample_data=True,
@@ -87,7 +87,7 @@ def test_statistics_page_renders_bigquery_statistics():
                     ),
                 ),
                 delayed_ratio_by_period=(
-                    DelayedRatioByPeriod(now, 5, 4, 0.8),
+                    DelayedRatioByPeriod(now, 5, 4, 0.8, 96.5),
                 ),
                 most_problematic_stops=(
                     ProblematicStop(
@@ -98,6 +98,15 @@ def test_statistics_page_renders_bigquery_statistics():
                         120.0,
                         0.8,
                         1,
+                    ),
+                ),
+                predicted_delay_by_station=(
+                    PredictedDelayByStation(
+                        "BKK_STOP_1",
+                        "Oktogon M",
+                        "Ujbuda-kozpont M",
+                        now,
+                        75.5,
                     ),
                 ),
             )
@@ -115,34 +124,16 @@ def test_statistics_page_renders_bigquery_statistics():
     assert "BigQuery analytics" in html
     assert "4-6 statistics" in html
     assert "Average delay by stop" in html
+    assert "Avg delay" in html
+    assert "Predicted delay now" in html
     assert "Delay by direction" not in html
     assert "Delay progression" not in html
     assert "Most problematic stops" in html
     assert "Oktogon M" in html
     assert "Ujbuda-kozpont M" in html
+    assert "75.5 s" in html
+    assert "96.5 s" in html
     assert "80%" in html
-
-
-def test_base_template_includes_firebase_web_config_when_configured():
-    config = replace(
-        _test_config(),
-        firebase_api_key="firebase-api-key",
-        firebase_auth_domain="bkktransitapp.firebaseapp.com",
-        firebase_project_id="bkktransitapp",
-        firebase_storage_bucket="bkktransitapp.firebasestorage.app",
-        firebase_messaging_sender_id="999117025007",
-        firebase_app_id="1:999117025007:web:388107d128ea9142cf751a",
-        firebase_measurement_id="G-3CK2Z4F0CY",
-    )
-    client = create_app(config=config).test_client()
-
-    response = client.get("/")
-
-    assert response.status_code == 200
-    html = response.get_data(as_text=True)
-    assert "firebase-app.js" in html
-    assert '"apiKey": "firebase-api-key"' in html
-    assert '"measurementId": "G-3CK2Z4F0CY"' in html
 
 
 def test_history_page_renders_firestore_entries():

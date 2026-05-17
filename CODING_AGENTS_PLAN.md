@@ -144,10 +144,11 @@ Tasks:
   - `GCP_PROJECT_ID`
   - `BIGQUERY_DATASET`
   - `BIGQUERY_TABLE`
-  - `GOOGLE_APPLICATION_CREDENTIALS`
   - `USE_FIRESTORE`
   - `USE_BIGQUERY`
   - `USE_SAMPLE_DATA`
+  - Cloud repositories use Google Application Default Credentials only; the app
+    does not load JSON credential files directly.
 - Implement `models.py` using dataclasses or typed dictionaries for:
   - `MonitoredStop`
   - `Route`

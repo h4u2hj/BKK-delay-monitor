@@ -26,7 +26,6 @@ def _config(use_firestore: bool) -> AppConfig:
         firestore_database_id="",
         bigquery_dataset="bkk_analytics",
         bigquery_table="delay_observations",
-        google_application_credentials="",
         use_firestore=use_firestore,
         use_bigquery=False,
         use_sample_data=True,
@@ -226,7 +225,6 @@ def test_firestore_repository_returns_empty_history_for_deleted_collection():
 
 def test_firestore_repository_reports_missing_adc_without_startup_traceback(
     monkeypatch,
-    caplog,
 ):
     def fail_to_build_client(config):
         raise DefaultCredentialsError("missing ADC")
@@ -236,14 +234,10 @@ def test_firestore_repository_reports_missing_adc_without_startup_traceback(
         fail_to_build_client,
     )
 
-    with caplog.at_level("WARNING", logger="bkk_delays.firestore_repository"):
-        repository = FirestoreRepository(_config(use_firestore=True))
+    repository = FirestoreRepository(_config(use_firestore=True))
 
     with pytest.raises(FirestoreRepositoryError, match="Application Default Credentials"):
         repository.save_search_collection_batch(_batch())
-
-    assert "initialization skipped" in caplog.text
-    assert "Firestore client initialization failed" not in caplog.text
 
 
 class FakeFirestoreClient:

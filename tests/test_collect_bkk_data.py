@@ -21,7 +21,6 @@ def _config() -> AppConfig:
         firestore_database_id="",
         bigquery_dataset="bkk_analytics",
         bigquery_table="delay_observations",
-        google_application_credentials="",
         use_firestore=True,
         use_bigquery=False,
         use_sample_data=False,

@@ -1,7 +1,56 @@
--- BigQuery analytics queries used by bkk_delays.bigquery_repository.
--- Table placeholders are rendered by Python after validating project, dataset,
--- and table identifiers. Keep BigQuery query parameters such as @hours in this
--- file; the repository binds their values with QueryJobConfig.
+-- name: predicted_delay_by_station
+WITH prediction_context AS (
+  SELECT CURRENT_DATETIME('Europe/Budapest') AS prediction_time
+),
+station_inputs AS (
+  SELECT
+    observation.stop_id,
+    COALESCE(ANY_VALUE(stop.name), observation.stop_id) AS stop_name,
+    COALESCE(NULLIF(observation.headsign, ''), 'unknown') AS headsign,
+    context.prediction_time,
+    EXTRACT(HOUR FROM context.prediction_time) AS hour_of_day,
+    SIN(
+      2 * ACOS(-1) * EXTRACT(HOUR FROM context.prediction_time) / 24
+    ) AS hour_sin,
+    COS(
+      2 * ACOS(-1) * EXTRACT(HOUR FROM context.prediction_time) / 24
+    ) AS hour_cos
+  FROM `{delay_observations_table}` AS observation
+  CROSS JOIN prediction_context AS context
+  LEFT JOIN `{stops_table}` AS stop
+    ON stop.id = observation.stop_id
+  WHERE observation.route_id IN ('BKK_3040', 'BKK_3060')
+    AND observation.stop_id IS NOT NULL
+  GROUP BY
+    observation.stop_id,
+    COALESCE(NULLIF(observation.headsign, ''), 'unknown'),
+    context.prediction_time
+),
+predictions AS (
+  SELECT *
+  FROM ML.PREDICT(
+    MODEL `{delay_prediction_model}`,
+    (
+      SELECT
+        stop_id,
+        headsign,
+        hour_of_day,
+        hour_sin,
+        hour_cos
+      FROM station_inputs
+    )
+  )
+)
+SELECT
+  station_inputs.stop_id,
+  station_inputs.stop_name,
+  station_inputs.headsign,
+  station_inputs.prediction_time,
+  predictions.predicted_delay_seconds
+FROM predictions
+JOIN station_inputs
+  USING (stop_id, headsign, hour_of_day, hour_sin, hour_cos)
+ORDER BY stop_name, headsign;
 
 -- name: average_delay_by_stop
 SELECT
@@ -31,11 +80,12 @@ SELECT
   DATETIME_TRUNC(scheduled_departure, HOUR) AS period_start,
   COUNT(*) AS observation_count,
   COUNTIF(delay_seconds > 60) AS delayed_count,
-  SAFE_DIVIDE(COUNTIF(delay_seconds > 60), COUNT(*)) AS delayed_ratio
+  SAFE_DIVIDE(COUNTIF(delay_seconds > 60), COUNT(*)) AS delayed_ratio,
+  AVG(delay_seconds) AS average_delay_seconds
 FROM `{delay_observations_table}`
 WHERE route_id IN ('BKK_3040', 'BKK_3060')
   AND scheduled_departure >= DATETIME_SUB(
-    DATETIME(TIMESTAMP_ADD(CURRENT_TIMESTAMP(), INTERVAL 2 HOUR)),
+    DATETIME(CURRENT_TIMESTAMP(), 'Europe/Budapest'),
     INTERVAL @hours HOUR
   )
 GROUP BY period_start

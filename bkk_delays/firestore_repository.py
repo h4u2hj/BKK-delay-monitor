@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any, Optional
 from zoneinfo import ZoneInfo
 
@@ -20,8 +18,6 @@ from bkk_delays.models import (
     SearchCollectionBatch,
     Stop,
 )
-
-LOGGER = logging.getLogger(__name__)
 
 ROUTES_COLLECTION = "routes"
 STOPS_COLLECTION = "stops"
@@ -85,10 +81,6 @@ class FirestoreRepository:
                 self._client = _build_firestore_client(config)
             except Exception as exc:
                 self._init_error = _format_firestore_init_error(exc)
-                LOGGER.warning(
-                    "Firestore client initialization skipped: %s",
-                    self._init_error,
-                )
 
     def save_search_collection_batch(
             self,
@@ -111,15 +103,6 @@ class FirestoreRepository:
                 f"Firestore batch upload failed: {exc}"
             ) from exc
 
-        LOGGER.info(
-            "Saved Firestore batch: %s routes, %s stops, %s collection runs, "
-            "%s delay observations, %s duplicates skipped.",
-            counts.routes_saved,
-            counts.stops_saved,
-            counts.collection_runs_saved,
-            counts.delay_observations_saved,
-            counts.duplicate_observations_skipped,
-        )
         return counts
 
     def delay_observation_duplicate_exists(
@@ -459,10 +442,7 @@ def _document_counts(
 
 
 def _build_firestore_client(config: AppConfig) -> Any:
-    credentials = _load_service_account_credentials(config)
     client_kwargs = {"project": config.gcp_project_id or None}
-    if credentials is not None:
-        client_kwargs["credentials"] = credentials
 
     if config.firestore_database_id:
         try:
@@ -471,10 +451,7 @@ def _build_firestore_client(config: AppConfig) -> Any:
                 database=config.firestore_database_id,
             )
         except TypeError:
-            LOGGER.warning(
-                "Installed google-cloud-firestore does not accept database=; "
-                "falling back to the default Firestore database."
-            )
+            pass
 
     return firestore.Client(**client_kwargs)
 
@@ -483,28 +460,3 @@ def _format_firestore_init_error(exc: Exception) -> str:
     if exc.__class__.__name__ == "DefaultCredentialsError":
         return f"Application Default Credentials are missing or unavailable: {exc}"
     return str(exc)
-
-
-def _load_service_account_credentials(config: AppConfig) -> Any:
-    """Load an explicit service account JSON file when configured."""
-
-    if not config.google_application_credentials:
-        return None
-
-    credentials_path = Path(config.google_application_credentials).expanduser()
-    if not credentials_path.is_file():
-        raise FirestoreRepositoryError(
-            "GOOGLE_APPLICATION_CREDENTIALS points to a file that does not exist: "
-            f"{credentials_path}"
-        )
-
-    try:
-        from google.oauth2 import service_account
-    except ImportError as exc:
-        raise FirestoreRepositoryError(
-            "google-auth is required to load GOOGLE_APPLICATION_CREDENTIALS."
-        ) from exc
-
-    return service_account.Credentials.from_service_account_file(
-        str(credentials_path),
-    )

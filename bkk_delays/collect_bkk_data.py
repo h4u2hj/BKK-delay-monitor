@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import logging
 from dataclasses import asdict, dataclass, field
 from typing import Optional, Sequence
 
@@ -14,7 +13,6 @@ from bkk_delays.firestore_repository import (
 )
 from bkk_delays.models import MONITORED_STOPS, MonitoredStop
 
-LOGGER = logging.getLogger(__name__)
 DEFAULT_DEPARTURE_LIMIT = 4
 
 
@@ -89,12 +87,6 @@ def run_collection(
                 message=str(exc),
             )
             errors.append(error)
-            LOGGER.warning(
-                "Collection failed for stop %s (%s): %s",
-                stop.stop_id,
-                stop.stop_name,
-                exc,
-            )
 
     return CollectionSummary(
         stops_requested=len(monitored_stops),
@@ -108,10 +100,6 @@ def run_collection(
 
 
 def main() -> None:
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
-    )
     summary = run_collection()
     print(json.dumps(summary.to_dict(), default=str, indent=2))
 

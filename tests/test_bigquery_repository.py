@@ -2,6 +2,7 @@ from datetime import datetime, timedelta, timezone
 
 from bkk_delays.bigquery_repository import (
     DELAY_OBSERVATIONS_TABLE,
+    DELAY_PREDICTION_MODEL,
     BigQueryRepository,
     BigQueryStatistics,
     MORICZ_UJBUDA_HEADSIGN,
@@ -21,7 +22,6 @@ def _config(use_bigquery: bool) -> AppConfig:
         firestore_database_id="",
         bigquery_dataset="bkk_analytics",
         bigquery_table=DELAY_OBSERVATIONS_TABLE,
-        google_application_credentials="",
         use_firestore=False,
         use_bigquery=use_bigquery,
         use_sample_data=True,
@@ -103,9 +103,65 @@ def test_average_delay_by_stop_uses_readable_unlimited_sql():
     assert "REGEXP_REPLACE" not in client.queries[0]
 
 
+def test_predicted_delay_by_station_uses_bigquery_ml_model_at_current_time():
+    client = FakeBigQueryClient(
+        query_results=[
+            [
+                {
+                    "stop_id": "BKK_STOP_1",
+                    "stop_name": "Oktogon M",
+                    "headsign": "Ujbuda-kozpont M",
+                    "prediction_time": "2026-05-16T14:25:00",
+                    "predicted_delay_seconds": 75.5,
+                }
+            ]
+        ]
+    )
+    repository = BigQueryRepository(_config(use_bigquery=True), client=client)
+
+    rows = repository.predicted_delay_by_station()
+
+    assert rows[0].stop_name == "Oktogon M"
+    assert rows[0].headsign == "Ujbuda-kozpont M"
+    assert rows[0].predicted_delay_seconds == 75.5
+    assert "ML.PREDICT" in client.queries[0]
+    assert f"`test-project.bkk_analytics.{DELAY_PREDICTION_MODEL}`" in client.queries[0]
+    assert "observation.route_id IN ('BKK_3040', 'BKK_3060')" in client.queries[0]
+    assert "route_id,\n        headsign" not in client.queries[0]
+    assert "CURRENT_DATETIME('Europe/Budapest')" in client.queries[0]
+    assert "prediction_context" in client.queries[0]
+    assert "current_time.prediction_time" not in client.queries[0]
+    assert "LIMIT" not in client.queries[0]
+
+
+def test_delayed_ratio_by_time_period_includes_average_delay_by_departure_hour():
+    client = FakeBigQueryClient(
+        query_results=[
+            [
+                {
+                    "period_start": "2026-05-16T14:00:00",
+                    "observation_count": 5,
+                    "delayed_count": 4,
+                    "delayed_ratio": 0.8,
+                    "average_delay_seconds": 96.5,
+                }
+            ]
+        ]
+    )
+    repository = BigQueryRepository(_config(use_bigquery=True), client=client)
+
+    rows = repository.delayed_ratio_by_time_period()
+
+    assert rows[0].average_delay_seconds == 96.5
+    assert "DATETIME_TRUNC(scheduled_departure, HOUR)" in client.queries[0]
+    assert "AVG(delay_seconds) AS average_delay_seconds" in client.queries[0]
+    assert "created_at" not in client.queries[0]
+
+
 def test_bigquery_sql_queries_are_loaded_from_sql_file():
     queries = load_named_sql_queries()
 
+    assert "predicted_delay_by_station" in queries
     assert "average_delay_by_stop" in queries
     assert "delay_by_direction" not in queries
     assert "delay_progression_by_stop_sequence" not in queries
@@ -122,7 +178,29 @@ def test_bigquery_sql_queries_are_loaded_from_sql_file():
     assert "DATETIME_TRUNC(scheduled_departure, HOUR)" in queries[
         "delayed_ratio_by_time_period"
     ]
+    assert "AVG(delay_seconds) AS average_delay_seconds" in queries[
+        "delayed_ratio_by_time_period"
+    ]
+    assert (
+        "scheduled_departure >= DATETIME_SUB(\n"
+        "    DATETIME(CURRENT_TIMESTAMP(), 'Europe/Budapest'),\n"
+        "    INTERVAL @hours HOUR\n"
+        "  )"
+    ) in queries["delayed_ratio_by_time_period"]
     assert "created_at" not in queries["delayed_ratio_by_time_period"]
+    assert "{delay_prediction_model}" in queries["predicted_delay_by_station"]
+    assert "ML.PREDICT" in queries["predicted_delay_by_station"]
+    assert "observation.route_id IN ('BKK_3040', 'BKK_3060')" in queries[
+        "predicted_delay_by_station"
+    ]
+    assert "route_id,\n        headsign" not in queries["predicted_delay_by_station"]
+    assert "CURRENT_DATETIME('Europe/Budapest')" in queries[
+        "predicted_delay_by_station"
+    ]
+    assert "prediction_context" in queries["predicted_delay_by_station"]
+    assert "current_time.prediction_time" not in queries[
+        "predicted_delay_by_station"
+    ]
 
 
 def test_statistics_from_observations_builds_sample_analytics():
@@ -226,6 +304,10 @@ def test_statistics_from_observations_groups_period_by_scheduled_departure():
     assert [row.period_start.hour for row in stats.delayed_ratio_by_period] == [
         observation.scheduled_departure.hour,
         later_scheduled_departure.scheduled_departure.hour,
+    ]
+    assert [row.average_delay_seconds for row in stats.delayed_ratio_by_period] == [
+        observation.delay_seconds,
+        later_scheduled_departure.delay_seconds,
     ]
 
 

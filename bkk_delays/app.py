@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 from typing import Optional
 
 from flask import Flask, jsonify, render_template, request
@@ -26,12 +25,6 @@ def create_app(
         firestore_repository: Optional[FirestoreRepository] = None,
         bigquery_repository: Optional[BigQueryRepository] = None,
 ) -> Flask:
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
-    )
-    logging.getLogger("bkk_delays").setLevel(logging.INFO)
-
     app = Flask(__name__)
     app_config = config or load_config()
     app.config["APP_CONFIG"] = app_config
@@ -43,10 +36,6 @@ def create_app(
             bigquery_repository or BigQueryRepository(app_config)
     )
     app.config["LAST_SEARCH_COLLECTION_BATCH"] = None
-
-    @app.context_processor
-    def inject_firebase_config():
-        return {"firebase_config": app_config.firebase_web_config}
 
     @app.get("/")
     def index():
@@ -77,10 +66,6 @@ def create_app(
                     repository = app.config["FIRESTORE_REPOSITORY"]
                     repository.save_search_collection_batch(batch)
                 except FirestoreRepositoryError as exc:
-                    logging.getLogger(__name__).warning(
-                        "Firestore persistence failed: %s",
-                        exc,
-                    )
                     persistence_error = str(exc)
             except BkkApiError as exc:
                 departure_error = str(exc)
@@ -116,10 +101,6 @@ def create_app(
             repository = app.config["FIRESTORE_REPOSITORY"]
             observations = repository.list_recent_history_entries(limit=50)
         except FirestoreRepositoryError as exc:
-            logging.getLogger(__name__).warning(
-                "Firestore history read failed: %s",
-                exc,
-            )
             history_error = str(exc)
 
         return render_template(
@@ -140,10 +121,6 @@ def create_app(
             try:
                 stats = app.config["BIGQUERY_REPOSITORY"].load_statistics()
             except BigQueryRepositoryError as exc:
-                logging.getLogger(__name__).warning(
-                    "BigQuery statistics read failed: %s",
-                    exc,
-                )
                 statistics_error = str(exc)
         else:
             last_batch = app.config["LAST_SEARCH_COLLECTION_BATCH"]

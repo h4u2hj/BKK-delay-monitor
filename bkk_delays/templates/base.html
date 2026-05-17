@@ -19,19 +19,6 @@
 <main>
     {% block content %}{% endblock %}
 </main>
-{% if firebase_config %}
-    <script type="module">
-        import {initializeApp} from "https://www.gstatic.com/firebasejs/12.13.0/firebase-app.js";
-        import {getAnalytics} from "https://www.gstatic.com/firebasejs/12.13.0/firebase-analytics.js";
-
-        const firebaseConfig = {{ firebase_config|tojson }};
-        const firebaseApp = initializeApp(firebaseConfig);
-
-        if (firebaseConfig.measurementId) {
-            getAnalytics(firebaseApp);
-        }
-    </script>
-{% endif %}
 {% block scripts %}{% endblock %}
 </body>
 </html>

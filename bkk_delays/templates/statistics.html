@@ -19,10 +19,39 @@
             </div>
         {% endif %}
 
-        {% if statistics.average_delay_by_stop
+        {% if statistics.predicted_delay_by_station
+            or statistics.average_delay_by_stop
             or statistics.delayed_ratio_by_period
             or statistics.most_problematic_stops %}
             <div class="statistics-grid">
+                {% if statistics.predicted_delay_by_station %}
+                    <section class="statistics-section" aria-labelledby="predicted-delay-title">
+                        <h2 id="predicted-delay-title">Predicted delay now</h2>
+                        <div class="table-wrap">
+                            <table>
+                                <thead>
+                                <tr>
+                                    <th>Stop</th>
+                                    <th>Headsign</th>
+                                    <th>Time</th>
+                                    <th>Predicted delay</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                {% for row in statistics.predicted_delay_by_station %}
+                                    <tr>
+                                        <td>{{ row.stop_name }}</td>
+                                        <td>{{ row.headsign }}</td>
+                                        <td>{{ row.prediction_time.strftime("%H:%M") }}</td>
+                                        <td>{{ "%.1f"|format(row.predicted_delay_seconds) }} s</td>
+                                    </tr>
+                                {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+                {% endif %}
+
                 <section class="statistics-section" aria-labelledby="avg-delay-stop-title">
                     <h2 id="avg-delay-stop-title">Average delay by stop</h2>
                     <div class="table-wrap">
@@ -58,6 +87,7 @@
                                 <th>Period</th>
                                 <th>Observations</th>
                                 <th>Delayed</th>
+                                <th>Avg delay</th>
                                 <th>Ratio</th>
                             </tr>
                             </thead>
@@ -67,6 +97,7 @@
                                     <td>{{ row.period_start.strftime("%Y-%m-%d %H:%M") }}</td>
                                     <td>{{ row.observation_count }}</td>
                                     <td>{{ row.delayed_count }}</td>
+                                    <td>{{ "%.1f"|format(row.average_delay_seconds) }} s</td>
                                     <td>{{ "%.0f"|format(row.delayed_ratio * 100) }}%</td>
                                 </tr>
                             {% endfor %}

@@ -27,7 +27,6 @@ class AppConfig:
     firestore_database_id: str
     bigquery_dataset: str
     bigquery_table: str
-    google_application_credentials: str
     use_firestore: bool
     use_bigquery: bool
     use_sample_data: bool
@@ -35,28 +34,6 @@ class AppConfig:
     bkk_api_version: str = "2"
     bkk_api_timeout_seconds: float = 5.0
     firestore_timeout_seconds: float = 8.0
-    firebase_api_key: str = ""
-    firebase_auth_domain: str = ""
-    firebase_project_id: str = ""
-    firebase_storage_bucket: str = ""
-    firebase_messaging_sender_id: str = ""
-    firebase_app_id: str = ""
-    firebase_measurement_id: str = ""
-
-    @property
-    def firebase_web_config(self) -> dict[str, str]:
-        """Return Firebase web SDK config values that are safe for the browser."""
-
-        config = {
-            "apiKey": self.firebase_api_key,
-            "authDomain": self.firebase_auth_domain,
-            "projectId": self.firebase_project_id,
-            "storageBucket": self.firebase_storage_bucket,
-            "messagingSenderId": self.firebase_messaging_sender_id,
-            "appId": self.firebase_app_id,
-            "measurementId": self.firebase_measurement_id,
-        }
-        return {key: value for key, value in config.items() if value}
 
 
 def load_config() -> AppConfig:
@@ -74,9 +51,6 @@ def load_config() -> AppConfig:
                          or "bkk_analytics",
         bigquery_table=os.getenv("BIGQUERY_TABLE", "delay_observations").strip()
                        or "delay_observations",
-        google_application_credentials=os.getenv(
-            "GOOGLE_APPLICATION_CREDENTIALS", ""
-        ).strip(),
         use_firestore=_env_bool("USE_FIRESTORE", False),
         use_bigquery=_env_bool("USE_BIGQUERY", False),
         use_sample_data=_env_bool("USE_SAMPLE_DATA", True),
@@ -84,13 +58,4 @@ def load_config() -> AppConfig:
         bkk_api_version=os.getenv("BKK_API_VERSION", "2").strip() or "2",
         bkk_api_timeout_seconds=float(os.getenv("BKK_API_TIMEOUT_SECONDS", "5")),
         firestore_timeout_seconds=float(os.getenv("FIRESTORE_TIMEOUT_SECONDS", "8")),
-        firebase_api_key=os.getenv("FIREBASE_API_KEY", "").strip(),
-        firebase_auth_domain=os.getenv("FIREBASE_AUTH_DOMAIN", "").strip(),
-        firebase_project_id=os.getenv("FIREBASE_PROJECT_ID", "").strip(),
-        firebase_storage_bucket=os.getenv("FIREBASE_STORAGE_BUCKET", "").strip(),
-        firebase_messaging_sender_id=os.getenv(
-            "FIREBASE_MESSAGING_SENDER_ID", ""
-        ).strip(),
-        firebase_app_id=os.getenv("FIREBASE_APP_ID", "").strip(),
-        firebase_measurement_id=os.getenv("FIREBASE_MEASUREMENT_ID", "").strip(),
     )

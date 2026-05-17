@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -10,17 +9,10 @@ from pathlib import Path
 from typing import Any, Callable, Optional, Sequence, TypeVar
 
 from google.auth.exceptions import DefaultCredentialsError
+from google.cloud import bigquery
 
 from bkk_delays.config import AppConfig
 from bkk_delays.models import DelayObservation, Stop
-
-try:  # pragma: no cover - exercised only when the optional package is absent.
-    from google.cloud import bigquery
-except ImportError:  # pragma: no cover
-    bigquery = None  # type: ignore[assignment]
-
-
-LOGGER = logging.getLogger(__name__)
 
 ANALYTICS_QUERY_FILE = (
     Path(__file__).resolve().parent.parent / "sql" / "bigquery_analytics_queries.sql"
@@ -29,6 +21,7 @@ QUERY_NAME_PATTERN = re.compile(r"^--\s*name:\s*([A-Za-z_][A-Za-z0-9_]*)\s*$")
 ROUTES_TABLE = "routes"
 STOPS_TABLE = "stops"
 DELAY_OBSERVATIONS_TABLE = "delay_observations"
+DELAY_PREDICTION_MODEL = "delay_predictor_by_station_time"
 
 _BQ_IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _GCP_PROJECT = re.compile(r"^[A-Za-z][A-Za-z0-9_-]*[A-Za-z0-9]$")
@@ -61,6 +54,7 @@ class DelayedRatioByPeriod:
     observation_count: int
     delayed_count: int
     delayed_ratio: float
+    average_delay_seconds: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -75,10 +69,20 @@ class ProblematicStop:
 
 
 @dataclass(frozen=True)
+class PredictedDelayByStation:
+    stop_id: str
+    stop_name: str
+    headsign: str
+    prediction_time: datetime
+    predicted_delay_seconds: float
+
+
+@dataclass(frozen=True)
 class BigQueryStatistics:
     average_delay_by_stop: tuple[AverageDelayByStop, ...]
     delayed_ratio_by_period: tuple[DelayedRatioByPeriod, ...]
     most_problematic_stops: tuple[ProblematicStop, ...]
+    predicted_delay_by_station: tuple[PredictedDelayByStation, ...] = ()
 
 
 T = TypeVar("T")
@@ -102,10 +106,6 @@ class BigQueryRepository:
                 self._client = _build_bigquery_client(config)
             except Exception as exc:
                 self._init_error = _format_bigquery_init_error(exc)
-                LOGGER.warning(
-                    "BigQuery client initialization skipped: %s",
-                    self._init_error,
-                )
 
     def load_statistics(self) -> BigQueryStatistics:
         """Read all statistics needed by the Flask statistics page."""
@@ -117,6 +117,7 @@ class BigQueryRepository:
             average_delay_by_stop=tuple(self.average_delay_by_stop()),
             delayed_ratio_by_period=tuple(self.delayed_ratio_by_time_period()),
             most_problematic_stops=tuple(self.most_problematic_stops()),
+            predicted_delay_by_station=tuple(self.predicted_delay_by_station()),
         )
 
     def average_delay_by_stop(self) -> list[AverageDelayByStop]:
@@ -139,6 +140,12 @@ class BigQueryRepository:
         return self._query_rows(
             self._render_query("most_problematic_stops"),
             _problematic_stop_from_row,
+        )
+
+    def predicted_delay_by_station(self) -> list[PredictedDelayByStation]:
+        return self._query_rows(
+            self._render_query("predicted_delay_by_station"),
+            _predicted_delay_by_station_from_row,
         )
 
     def _query_rows(
@@ -184,6 +191,7 @@ class BigQueryRepository:
             delay_observations_table=self._table_id(DELAY_OBSERVATIONS_TABLE),
             stops_table=self._table_id(STOPS_TABLE),
             routes_table=self._table_id(ROUTES_TABLE),
+            delay_prediction_model=self._table_id(DELAY_PREDICTION_MODEL),
         )
 
     def _require_client(self) -> Any:
@@ -236,6 +244,7 @@ def statistics_from_observations(
                     if observation.delay_seconds > 60
                 ),
                 delayed_ratio=_delayed_ratio(period_observations),
+                average_delay_seconds=_average_delay(period_observations),
             )
             for period, period_observations in _group_by(
                 observations,
@@ -266,6 +275,7 @@ def statistics_from_observations(
                 ),
             )
         ),
+        predicted_delay_by_station=(),
     )
 
 
@@ -301,6 +311,7 @@ def empty_statistics() -> BigQueryStatistics:
         average_delay_by_stop=(),
         delayed_ratio_by_period=(),
         most_problematic_stops=(),
+        predicted_delay_by_station=(),
     )
 
 
@@ -330,6 +341,7 @@ def _delayed_ratio_by_period_from_row(row: Any) -> DelayedRatioByPeriod:
         observation_count=int(_row_value(row, "observation_count") or 0),
         delayed_count=int(_row_value(row, "delayed_count") or 0),
         delayed_ratio=float(_row_value(row, "delayed_ratio") or 0),
+        average_delay_seconds=float(_row_value(row, "average_delay_seconds") or 0),
     )
 
 
@@ -345,41 +357,25 @@ def _problematic_stop_from_row(row: Any) -> ProblematicStop:
     )
 
 
+def _predicted_delay_by_station_from_row(row: Any) -> PredictedDelayByStation:
+    return PredictedDelayByStation(
+        stop_id=str(_row_value(row, "stop_id") or ""),
+        stop_name=str(_row_value(row, "stop_name") or ""),
+        headsign=str(_row_value(row, "headsign") or "unknown"),
+        prediction_time=_as_datetime(_row_value(row, "prediction_time")),
+        predicted_delay_seconds=float(
+            _row_value(row, "predicted_delay_seconds") or 0
+        ),
+    )
+
+
 def _build_bigquery_client(config: AppConfig) -> Any:
     if bigquery is None:
         raise BigQueryRepositoryError(
             "google-cloud-bigquery is required when USE_BIGQUERY=true."
         )
 
-    credentials = _load_service_account_credentials(config)
-    client_kwargs = {"project": config.gcp_project_id or None}
-    if credentials is not None:
-        client_kwargs["credentials"] = credentials
-
-    return bigquery.Client(**client_kwargs)
-
-
-def _load_service_account_credentials(config: AppConfig) -> Any:
-    if not config.google_application_credentials:
-        return None
-
-    credentials_path = Path(config.google_application_credentials).expanduser()
-    if not credentials_path.is_file():
-        raise BigQueryRepositoryError(
-            "GOOGLE_APPLICATION_CREDENTIALS points to a file that does not exist: "
-            f"{credentials_path}"
-        )
-
-    try:
-        from google.oauth2 import service_account
-    except ImportError as exc:
-        raise BigQueryRepositoryError(
-            "google-auth is required to load GOOGLE_APPLICATION_CREDENTIALS."
-        ) from exc
-
-    return service_account.Credentials.from_service_account_file(
-        str(credentials_path),
-    )
+    return bigquery.Client(project=config.gcp_project_id or None)
 
 
 def _format_bigquery_init_error(exc: Exception) -> str:

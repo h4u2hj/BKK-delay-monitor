@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import json
-import logging
 import uuid
 from collections.abc import Iterable
 from datetime import datetime, timezone
@@ -27,7 +25,6 @@ from bkk_delays.models import (
     Stop,
 )
 
-LOGGER = logging.getLogger(__name__)
 try:
     BUDAPEST_TZ = ZoneInfo("Europe/Budapest")
 except ZoneInfoNotFoundError:
@@ -64,11 +61,6 @@ class BkkApiClient:
         if payload.get("status") != "OK":
             status = payload.get("status", "UNKNOWN")
             text = payload.get("text", "")
-            LOGGER.warning(
-                "BKK search returned non-OK status %s: %s",
-                status,
-                _format_payload(payload),
-            )
             raise BkkApiError(f"BKK search failed with status {status}: {text}")
 
         return parse_station_search_results(payload, limit=limit)
@@ -95,11 +87,6 @@ class BkkApiClient:
         if payload.get("status") != "OK":
             status = payload.get("status", "UNKNOWN")
             text = payload.get("text", "")
-            LOGGER.warning(
-                "BKK stop departures returned non-OK status %s: %s",
-                status,
-                _format_payload(payload),
-            )
             raise BkkApiError(f"BKK stop departures failed with status {status}: {text}")
 
         return parse_stop_departures(payload, stop_id=cleaned_stop_id, limit=limit)
@@ -124,16 +111,8 @@ class BkkApiClient:
                 params=request_params,
                 timeout=self.config.bkk_api_timeout_seconds,
             )
-            LOGGER.info("BKK API GET %s returned HTTP %s", endpoint, response.status_code)
             response.raise_for_status()
         except requests.HTTPError as exc:
-            error_response = exc.response
-            response_text = error_response.text if error_response is not None else ""
-            LOGGER.warning(
-                "BKK API %s HTTP error response: %s",
-                endpoint,
-                response_text,
-            )
             raise BkkApiError(f"BKK API request failed: {exc}") from exc
         except requests.RequestException as exc:
             raise BkkApiError(f"BKK API request failed: {exc}") from exc
@@ -141,22 +120,9 @@ class BkkApiClient:
         try:
             payload = response.json()
         except ValueError as exc:
-            LOGGER.warning(
-                "BKK API %s returned invalid JSON: %s",
-                endpoint,
-                response.text,
-            )
             raise BkkApiError("BKK API returned invalid JSON.") from exc
 
-        LOGGER.info("BKK API %s response: %s", endpoint, _format_payload(payload))
         return payload
-
-
-def _format_payload(payload: Any) -> str:
-    try:
-        return json.dumps(payload, ensure_ascii=False, default=str)
-    except (TypeError, ValueError):
-        return str(payload)
 
 
 def parse_station_search_results(

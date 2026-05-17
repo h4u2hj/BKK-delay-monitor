@@ -1,9 +1,3 @@
--- Creates the normalized analytics table from Firestore BigQuery CREATE events.
--- Firestore timestamp seconds are converted to UTC+2 local wall time and stored
--- as DATETIME values under the normal application column names.
--- Edit the project or dataset name below if your Firestore extension tables live
--- somewhere other than bkktransitapp.bkk_analytics.
-
 CREATE TEMP FUNCTION firestore_timestamp(ts_json STRING)
 RETURNS TIMESTAMP
 AS (
