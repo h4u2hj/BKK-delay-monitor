@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from bkk_delays.delay_processor import (
     categorize_delay,
     count_delay_seconds,
+    create_observation_duplicate_key,
     create_observation_id,
 )
 
@@ -46,10 +47,10 @@ def test_create_observation_id_is_stable_for_same_natural_key():
     assert first == second
 
 
-def test_create_observation_id_uses_collected_minute_when_provided():
+def test_create_observation_id_ignores_collection_time_when_provided():
     scheduled = datetime(2026, 5, 16, 14, 5, tzinfo=timezone.utc)
     collected_first = datetime(2026, 5, 16, 14, 0, 1, tzinfo=timezone.utc)
-    collected_second = datetime(2026, 5, 16, 14, 0, 59, tzinfo=timezone.utc)
+    collected_second = datetime(2026, 5, 16, 14, 20, 59, tzinfo=timezone.utc)
 
     first = create_observation_id(
         "RUN_1",
@@ -69,3 +70,15 @@ def test_create_observation_id_uses_collected_minute_when_provided():
     )
 
     assert first == second
+
+
+def test_create_observation_duplicate_key_ignores_collection_time():
+    scheduled = datetime(2026, 5, 16, 14, 5, tzinfo=timezone.utc)
+
+    duplicate_key = create_observation_duplicate_key(
+        "BKK_TRIP_1",
+        "BKK_STOP_1",
+        scheduled,
+    )
+
+    assert duplicate_key == "BKK_TRIP_1|BKK_STOP_1|2026-05-16T14:05:00+00:00"

@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+
+{% block title %}4-6 Statistics - BKK Delay Monitor{% endblock %}
+
+{% block content %}
+    <section class="history-page statistics-page" aria-labelledby="statistics-title">
+        <div class="history-header">
+            <p class="eyebrow">{{ source_label }}</p>
+            <h1 id="statistics-title">4-6 statistics</h1>
+        </div>
+
+        {% if statistics_error %}
+            <div class="departures-message" role="alert">{{ statistics_error }}</div>
+        {% endif %}
+
+        {% if not use_bigquery %}
+            <div class="departures-message">
+                BigQuery is disabled. This page uses the latest station search in memory when available.
+            </div>
+        {% endif %}
+
+        {% if statistics.average_delay_by_stop
+            or statistics.delayed_ratio_by_period
+            or statistics.most_problematic_stops %}
+            <div class="statistics-grid">
+                <section class="statistics-section" aria-labelledby="avg-delay-stop-title">
+                    <h2 id="avg-delay-stop-title">Average delay by stop</h2>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                            <tr>
+                                <th>Stop</th>
+                                <th>Headsign</th>
+                                <th>Observations</th>
+                                <th>Avg delay</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {% for row in statistics.average_delay_by_stop %}
+                                <tr>
+                                    <td>{{ row.stop_name }}</td>
+                                    <td>{{ row.headsign }}</td>
+                                    <td>{{ row.observation_count }}</td>
+                                    <td>{{ "%.1f"|format(row.average_delay_seconds) }} s</td>
+                                </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <section class="statistics-section" aria-labelledby="period-title">
+                    <h2 id="period-title">Delayed ratio by hour</h2>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                            <tr>
+                                <th>Period</th>
+                                <th>Observations</th>
+                                <th>Delayed</th>
+                                <th>Ratio</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {% for row in statistics.delayed_ratio_by_period %}
+                                <tr>
+                                    <td>{{ row.period_start.strftime("%Y-%m-%d %H:%M") }}</td>
+                                    <td>{{ row.observation_count }}</td>
+                                    <td>{{ row.delayed_count }}</td>
+                                    <td>{{ "%.0f"|format(row.delayed_ratio * 100) }}%</td>
+                                </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <section class="statistics-section" aria-labelledby="problem-stops-title">
+                    <h2 id="problem-stops-title">Most problematic stops</h2>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                            <tr>
+                                <th>Stop</th>
+                                <th>Headsign</th>
+                                <th>Avg delay</th>
+                                <th>Delayed</th>
+                                <th>Major</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {% for row in statistics.most_problematic_stops %}
+                                <tr>
+                                    <td>{{ row.stop_name }}</td>
+                                    <td>{{ row.headsign }}</td>
+                                    <td>{{ "%.1f"|format(row.average_delay_seconds) }} s</td>
+                                    <td>{{ "%.0f"|format(row.delayed_ratio * 100) }}%</td>
+                                    <td>{{ row.major_delay_count }}</td>
+                                </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+            </div>
+        {% else %}
+            <div class="empty-state">
+                <h2>No statistics yet</h2>
+                <p>Run a station search or enable BigQuery after loading observations.</p>
+            </div>
+        {% endif %}
+    </section>
+{% endblock %}

@@ -22,7 +22,9 @@ The app is also runnable with Flask:
 - Search page with live BKK/FUTAR station lookup after more than 3 typed characters.
 - Station selection stores the FUTAR stop ID in the form as `station_id`.
 - Optional Firestore persistence for normalized search collection batches.
+- Optional BigQuery analytics reads from normalized tables.
 - History tab for future Firestore-backed observation browsing.
+- Statistics tab backed by BigQuery or the latest in-memory station search.
 - Minimal custom CSS with responsive layout.
 
 ## Firestore Credentials
@@ -69,3 +71,40 @@ FIREBASE_MEASUREMENT_ID=
 When these values are present, the base template initializes Firebase and
 Analytics in the browser. These web config values do not replace
 `GOOGLE_APPLICATION_CREDENTIALS` for server-side Firestore writes.
+
+## BigQuery Analytics
+
+Keep `USE_BIGQUERY=false` for local/sample mode. The statistics page will then
+use the latest in-memory station search, if one exists. The page is titled
+`4-6 statistics` and filters analytics to tram 4 and 6 route IDs `BKK_3040`
+and `BKK_3060`. To read analytics from BigQuery, set:
+
+```powershell
+USE_BIGQUERY=true
+GCP_PROJECT_ID=bkktransitapp
+BIGQUERY_DATASET=bkk_analytics
+GOOGLE_APPLICATION_CREDENTIALS=C:\path\to\service-account.json
+```
+
+The repository reads these normalized table names in the configured dataset:
+
+- `routes`
+- `stops`
+- `collection_runs`
+- `delay_observations`
+
+Analytics SQL is kept in `sql/bigquery_analytics_queries.sql`. The Python
+repository only validates table identifiers, renders those table names into the
+queries, binds query parameters, and maps result rows for the statistics page.
+Station-level statistics group by both station and `headsign`, so the same stop
+can appear once per direction. `Újbuda-központ M` and `Móricz Zsigmond körtér M`
+headsigns are grouped together as one direction. The delayed-ratio time period
+statistic is bucketed by scheduled departure time, not by when the prediction was
+searched.
+
+For credentials, you need either Application Default Credentials from `gcloud
+auth application-default login` or a service account JSON file. The account only
+needs permission to run BigQuery jobs and read the configured dataset/tables for
+the app's current BigQuery usage. Station search and collection do not write to
+BigQuery; Firestore remains the operational persistence path. Firebase web
+config values do not grant server-side BigQuery access.

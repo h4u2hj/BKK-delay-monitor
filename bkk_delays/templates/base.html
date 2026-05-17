@@ -12,6 +12,7 @@
     <nav class="tabs" aria-label="Main navigation">
         <a class="tab {{ 'active' if active_page == 'search' else '' }}" href="{{ url_for('index') }}">Search</a>
         <a class="tab {{ 'active' if active_page == 'history' else '' }}" href="{{ url_for('history') }}">History</a>
+        <a class="tab {{ 'active' if active_page == 'statistics' else '' }}" href="{{ url_for('statistics') }}">Statistics</a>
     </nav>
 </header>
 

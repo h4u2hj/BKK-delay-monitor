@@ -101,7 +101,11 @@ class FirestoreRepository:
 
         client = self._require_client()
         try:
-            counts = _save_search_collection_batch_transactionally(client, batch)
+            counts = _save_search_collection_batch_transactionally(
+                client,
+                batch,
+                timeout=self.config.firestore_timeout_seconds,
+            )
         except Exception as exc:
             raise FirestoreRepositoryError(
                 f"Firestore batch upload failed: {exc}"
@@ -122,13 +126,17 @@ class FirestoreRepository:
             self,
             observation: DelayObservation,
     ) -> bool:
-        """Return true when trip and stop already exist in delay observations."""
+        """Return true when the natural duplicate key already exists."""
 
         if not self.config.use_firestore:
             return False
 
         client = self._require_client()
-        return _delay_observation_duplicate_exists(client, observation)
+        return _delay_observation_duplicate_exists(
+            client,
+            observation,
+            timeout=self.config.firestore_timeout_seconds,
+        )
 
     def list_recent_history_entries(
             self,
@@ -141,7 +149,11 @@ class FirestoreRepository:
 
         client = self._require_client()
         try:
-            return _read_history_entries_transactionally(client, limit=limit)
+            return _read_history_entries(
+                client,
+                limit=limit,
+                timeout=self.config.firestore_timeout_seconds,
+            )
         except Exception as exc:
             raise FirestoreRepositoryError(
                 f"Firestore history read failed: {exc}"
@@ -230,41 +242,36 @@ def delay_observation_to_firestore_document(
             observation.trip_id,
             observation.stop_id,
             observation.scheduled_departure,
-            observation.created_at,
         ),
     }
 
 
-def _read_history_entries_transactionally(
+def _read_history_entries(
         client: Any,
         limit: int,
+        timeout: float,
 ) -> list[FirestoreHistoryEntry]:
-    transaction = client.transaction()
-
-    @firestore.transactional
-    def read_in_transaction(transaction: Any) -> list[FirestoreHistoryEntry]:
-        observations = (
-            client.collection(DELAY_OBSERVATIONS_COLLECTION)
-            .order_by("created_at", direction=firestore.Query.DESCENDING)
-            .limit(limit)
-            .stream(transaction=transaction)
+    observations = (
+        client.collection(DELAY_OBSERVATIONS_COLLECTION)
+        .order_by("created_at", direction=firestore.Query.DESCENDING)
+        .limit(limit)
+        .stream(timeout=timeout)
+    )
+    return [
+        _history_entry_from_observation_snapshot(
+            client,
+            observation_snapshot,
+            timeout=timeout,
         )
-        return [
-            _history_entry_from_observation_snapshot(
-                client,
-                transaction,
-                observation_snapshot,
-            )
-            for observation_snapshot in observations
-        ]
-
-    return read_in_transaction(transaction)
+        for observation_snapshot in observations
+    ]
 
 
 def _history_entry_from_observation_snapshot(
         client: Any,
-        transaction: Any,
         observation_snapshot: Any,
+        timeout: Optional[float] = None,
+        transaction: Optional[Any] = None,
 ) -> FirestoreHistoryEntry:
     observation = observation_snapshot.to_dict() or {}
     stop_id = str(observation.get("stop_id") or "")
@@ -272,15 +279,17 @@ def _history_entry_from_observation_snapshot(
 
     stop = _document_data_in_transaction(
         client,
-        transaction,
         STOPS_COLLECTION,
         stop_id,
+        timeout=timeout,
+        transaction=transaction,
     )
     route = _document_data_in_transaction(
         client,
-        transaction,
         ROUTES_COLLECTION,
         route_id,
+        timeout=timeout,
+        transaction=transaction,
     )
 
     return FirestoreHistoryEntry(
@@ -295,9 +304,10 @@ def _history_entry_from_observation_snapshot(
 
 def _document_data_in_transaction(
         client: Any,
-        transaction: Any,
         collection_name: str,
         document_id: str,
+        timeout: Optional[float] = None,
+        transaction: Optional[Any] = None,
 ) -> dict[str, Any]:
     if not document_id:
         return {}
@@ -305,7 +315,7 @@ def _document_data_in_transaction(
     snapshot = (
         client.collection(collection_name)
         .document(document_id)
-        .get(transaction=transaction)
+        .get(transaction=transaction, timeout=timeout)
     )
     if not getattr(snapshot, "exists", True):
         return {}
@@ -325,22 +335,71 @@ def _delay_observation_duplicate_exists(
         client: Any,
         observation: DelayObservation,
         transaction: Optional[Any] = None,
+        timeout: Optional[float] = None,
 ) -> bool:
-    if not observation.id:
+    duplicate_key = _observation_duplicate_key(observation)
+    if not duplicate_key:
         return False
 
-    snapshot = (
+    snapshots = (
         client.collection(DELAY_OBSERVATIONS_COLLECTION)
-        .document(observation.id)
-        .get(transaction=transaction)
+        .where("duplicate_key", "==", duplicate_key)
+        .limit(1)
+        .stream(transaction=transaction, timeout=timeout)
     )
 
-    return bool(getattr(snapshot, "exists", False))
+    if any(getattr(snapshot, "exists", True) for snapshot in snapshots):
+        return True
+
+    return _legacy_observation_duplicate_exists(
+        client,
+        observation,
+        transaction=transaction,
+        timeout=timeout,
+    )
+
+
+def _observation_duplicate_key(observation: DelayObservation) -> str:
+    return create_observation_duplicate_key(
+        observation.trip_id,
+        observation.stop_id,
+        observation.scheduled_departure,
+    )
+
+
+def _legacy_observation_duplicate_exists(
+        client: Any,
+        observation: DelayObservation,
+        transaction: Optional[Any] = None,
+        timeout: Optional[float] = None,
+) -> bool:
+    snapshots = (
+        client.collection(DELAY_OBSERVATIONS_COLLECTION)
+        .where("trip_id", "==", observation.trip_id)
+        .stream(transaction=transaction, timeout=timeout)
+    )
+
+    return any(
+        getattr(snapshot, "exists", True)
+        and _same_trip_stop_departure(snapshot.to_dict() or {}, observation)
+        for snapshot in snapshots
+    )
+
+
+def _same_trip_stop_departure(
+        document: dict[str, Any],
+        observation: DelayObservation,
+) -> bool:
+    return (
+        document.get("stop_id") == observation.stop_id
+        and document.get("scheduled_departure") == observation.scheduled_departure
+    )
 
 
 def _save_search_collection_batch_transactionally(
         client: Any,
         batch: SearchCollectionBatch,
+        timeout: float,
 ) -> FirestoreSaveSummary:
     transaction = client.transaction()
 
@@ -353,6 +412,7 @@ def _save_search_collection_batch_transactionally(
                 client,
                 observation,
                 transaction=transaction,
+                timeout=timeout,
             )
         ]
         duplicate_observations_skipped = len(batch.delay_observations) - len(
@@ -367,7 +427,7 @@ def _save_search_collection_batch_transactionally(
                     records_saved=len(new_observations),
                 ),
                 delay_observations=tuple(new_observations),
-            )
+            ),
         )
         counts = _document_counts(
             documents,

@@ -80,6 +80,13 @@ bkk-delays_project/
     test_sample_data.py
 ```
 
+Data flow clarification:
+
+- The Flask app and collection workflow write normalized observations to Firestore as the operational store.
+- BigQuery is populated outside the app by a Firestore-to-BigQuery sync configured in GCP.
+- The app treats BigQuery as read-only and uses it only for analytics queries shown in `/statistics`.
+- The statistics page is specifically for tram 4 and 6, using BigQuery `route_id` values `BKK_3040` and `BKK_3060`.
+
 ## Development Phases
 
 ### Phase 1 - Project Foundation
@@ -224,7 +231,7 @@ delay_seconds = predicted_departure - scheduled_departure
 - Generate a natural deduplication key:
 
 ```text
-trip_id + stop_id + scheduled_departure + collected_at_rounded_to_minute
+trip_id + stop_id + scheduled_departure
 ```
 
 Acceptance criteria:
@@ -236,7 +243,7 @@ Acceptance criteria:
 
 Tasks:
 
-- Implement `firestore_repository.py` for optional operational/raw storage:
+- Implement `firestore_repository.py` for operational/raw writes:
   - `routes`
   - `stops`
   - `collection_runs`
@@ -244,19 +251,20 @@ Tasks:
   - `api_call_logs`
   - `raw_api_responses`
   - `monitored_stops`
-- Implement `bigquery_repository.py` for analytics storage:
+- Configure the GCP Firestore-to-BigQuery sync outside this app so Firestore writes populate:
   - dataset: `bkk_analytics`
   - tables: `routes`, `stops`, `collection_runs`, `delay_observations`
-- Provide table creation or setup helper for BigQuery if feasible.
-- Partition BigQuery by `created_at`.
+- Implement `bigquery_repository.py` as a read-only analytics repository. It must not expose insert/update/save methods.
+- Partition BigQuery by `created_at` in the GCP-managed sync or follow-up SQL setup.
 - Cluster BigQuery by `route_id` and `stop_id` where supported.
-- Make repository methods no-op or sample-backed when cloud configuration is disabled.
+- Make read repositories no-op or sample-backed when cloud configuration is disabled.
 
 Acceptance criteria:
 
-- Collection can save observations to Firestore, BigQuery, or sample/local fallback depending on config.
-- Duplicate observations do not break insertion.
-- BigQuery insert errors are logged with enough context to debug.
+- Collection and station search save observations to Firestore only when persistence is enabled.
+- Collection and station search never write directly to BigQuery.
+- Duplicate Firestore observations do not break insertion.
+- BigQuery read errors are logged with enough context to debug analytics failures.
 
 ### Phase 6 - Collection Workflow
 
@@ -268,7 +276,7 @@ Tasks:
   2. Call BKK API for each stop.
   3. Normalize predictions.
   4. Save raw logs if enabled.
-  5. Save normalized observations.
+  5. Save normalized observations to Firestore when enabled.
   6. Return a summary with counts and errors.
 - Add a CLI command or module entry point for manual collection.
 - Make the Flask GUI able to trigger one collection run manually.
@@ -309,20 +317,27 @@ Acceptance criteria:
 
 Tasks:
 
+- Treat BigQuery as read-only because GCP Firestore-to-BigQuery sync fills the analytics dataset.
+- Keep BigQuery SQL query text in `sql/bigquery_analytics_queries.sql`; `bigquery_repository.py` should load and render named query blocks rather than storing SQL inline.
 - Add query methods in `bigquery_repository.py` for:
-  - average delay by stop
-  - delay by direction
+  - average delay by stop and headsign
   - delayed ratio by time period
-  - most problematic stops
-  - delay progression by `stop_sequence`
+  - most problematic stops and headsign
 - Surface these in `/statistics`.
+- Title the statistics page `4-6 statistics`.
+- Filter every BigQuery analytics query to `route_id` values `BKK_3040` and `BKK_3060`.
+- Group station-level statistics by both station and `headsign` so both directions appear as separate rows.
+- Group `Újbuda-központ M` and `Móricz Zsigmond körtér M` headsigns together as the same direction.
+- Group delay-ratio time periods by `scheduled_departure`, not by the observation search time.
 - If BigQuery is disabled, show sample analytics from generated sample observations.
 
 Acceptance criteria:
 
 - At least three meaningful statistics are visible in the GUI.
 - SQL is readable and parameterized where needed.
+- Statistics queries should not use result limits.
 - Empty datasets produce friendly empty states.
+- No station search, collection, or repository method writes directly to BigQuery.
 
 ### Phase 9 - Sample Data and Local Demo Mode
 
@@ -367,6 +382,10 @@ Acceptance criteria:
 ## Database Schema
 
 Target normalized entities:
+
+Firestore is the application write source for these entities. BigQuery mirrors
+the same normalized shape through the Firestore-to-BigQuery sync configured in
+GCP, then serves analytics reads.
 
 `routes`
 
@@ -438,7 +457,9 @@ Suggested collections:
 - `raw_api_responses`: optional raw response snapshots for debugging.
 - `monitored_stops`: configured tram 4-6 stops.
 
-Firestore is optional for the minimum version. BigQuery or local sample mode can be used first if implementation time is limited.
+Firestore is the application write path. BigQuery is read-only in this app and
+is filled by the GCP Firestore-to-BigQuery sync. Local sample mode remains the
+fallback when cloud configuration is unavailable.
 
 ## GUI Requirements
 
@@ -464,10 +485,10 @@ Pages:
   - latest observations table
   - stop, route, direction, scheduled time, predicted time, delay seconds, delay category
 - Statistics page:
-  - average delay by stop
+  - title: `4-6 statistics`
+  - average delay by stop and headsign
   - delay ratio by time period
-  - problematic stops
-  - direction comparison
+  - problematic stops by stop and headsign
 - Logs page:
   - recent collection/API logs
 
@@ -481,8 +502,8 @@ Follow this order unless the user asks otherwise:
 4. Build Flask app with sample mode pages.
 5. Add collection workflow with a mocked/sample client path.
 6. Add real BKK API client.
-7. Add BigQuery repository and analytics queries.
-8. Add Firestore repository if time remains or the user prioritizes it.
+7. Add Firestore repository and station/collection persistence.
+8. Add read-only BigQuery repository and analytics queries.
 9. Polish README and coursework explanation.
 
 This order keeps the application demonstrable early, even before external credentials are available.

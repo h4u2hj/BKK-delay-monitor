@@ -5,6 +5,12 @@ from typing import Optional
 
 from flask import Flask, jsonify, render_template, request
 
+from bkk_delays.bigquery_repository import (
+    BigQueryRepository,
+    BigQueryRepositoryError,
+    empty_statistics,
+    statistics_from_observations,
+)
 from bkk_delays.bkk_api import BkkApiClient, BkkApiError
 from bkk_delays.config import AppConfig, load_config
 from bkk_delays.firestore_repository import (
@@ -18,6 +24,7 @@ def create_app(
         config: Optional[AppConfig] = None,
         bkk_client: Optional[BkkApiClient] = None,
         firestore_repository: Optional[FirestoreRepository] = None,
+        bigquery_repository: Optional[BigQueryRepository] = None,
 ) -> Flask:
     logging.basicConfig(
         level=logging.INFO,
@@ -31,6 +38,9 @@ def create_app(
     app.config["BKK_CLIENT"] = bkk_client or BkkApiClient(app_config)
     app.config["FIRESTORE_REPOSITORY"] = (
             firestore_repository or FirestoreRepository(app_config)
+    )
+    app.config["BIGQUERY_REPOSITORY"] = (
+            bigquery_repository or BigQueryRepository(app_config)
     )
     app.config["LAST_SEARCH_COLLECTION_BATCH"] = None
 
@@ -117,6 +127,39 @@ def create_app(
             active_page="history",
             observations=observations,
             history_error=history_error,
+        )
+
+    @app.get("/statistics")
+    def statistics():
+        statistics_error = ""
+        source_label = "Sample statistics"
+        stats = empty_statistics()
+
+        if app_config.use_bigquery:
+            source_label = "BigQuery analytics"
+            try:
+                stats = app.config["BIGQUERY_REPOSITORY"].load_statistics()
+            except BigQueryRepositoryError as exc:
+                logging.getLogger(__name__).warning(
+                    "BigQuery statistics read failed: %s",
+                    exc,
+                )
+                statistics_error = str(exc)
+        else:
+            last_batch = app.config["LAST_SEARCH_COLLECTION_BATCH"]
+            if last_batch is not None:
+                stats = statistics_from_observations(
+                    last_batch.delay_observations,
+                    last_batch.stops,
+                )
+
+        return render_template(
+            "statistics.html",
+            active_page="statistics",
+            statistics=stats,
+            source_label=source_label,
+            statistics_error=statistics_error,
+            use_bigquery=app_config.use_bigquery,
         )
 
     return app

@@ -301,6 +301,22 @@ h1 {
     font-size: clamp(30px, 4vw, 44px);
 }
 
+.statistics-grid {
+    display: grid;
+    gap: 24px;
+}
+
+.statistics-section {
+    display: grid;
+    gap: 12px;
+}
+
+.statistics-section h2 {
+    margin: 0;
+    font-size: 20px;
+    letter-spacing: 0;
+}
+
 .empty-state {
     padding: 48px;
     background: var(--surface);

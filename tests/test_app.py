@@ -2,6 +2,12 @@ from dataclasses import replace
 from datetime import datetime, timezone
 
 from bkk_delays.app import create_app
+from bkk_delays.bigquery_repository import (
+    AverageDelayByStop,
+    BigQueryStatistics,
+    DelayedRatioByPeriod,
+    ProblematicStop,
+)
 from bkk_delays.config import AppConfig
 from bkk_delays.firestore_repository import FirestoreHistoryEntry
 from bkk_delays.models import (
@@ -52,6 +58,69 @@ def test_history_page_renders_empty_state():
     html = response.get_data(as_text=True)
     assert "Stored observations" in html
     assert "No history yet" in html
+
+
+def test_statistics_page_renders_empty_state_without_bigquery_data():
+    client = create_app(config=_test_config()).test_client()
+
+    response = client.get("/statistics")
+
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert "4-6 statistics" in html
+    assert "BigQuery is disabled" in html
+    assert "No statistics yet" in html
+
+
+def test_statistics_page_renders_bigquery_statistics():
+    class FakeBigQueryRepository:
+        def load_statistics(self):
+            now = datetime(2026, 5, 16, 14, 0, tzinfo=timezone.utc)
+            return BigQueryStatistics(
+                average_delay_by_stop=(
+                    AverageDelayByStop(
+                        "BKK_STOP_1",
+                        "Oktogon M",
+                        "Ujbuda-kozpont M",
+                        5,
+                        120.0,
+                    ),
+                ),
+                delayed_ratio_by_period=(
+                    DelayedRatioByPeriod(now, 5, 4, 0.8),
+                ),
+                most_problematic_stops=(
+                    ProblematicStop(
+                        "BKK_STOP_1",
+                        "Oktogon M",
+                        "Ujbuda-kozpont M",
+                        5,
+                        120.0,
+                        0.8,
+                        1,
+                    ),
+                ),
+            )
+
+    config = replace(_test_config(), use_bigquery=True)
+    client = create_app(
+        config=config,
+        bigquery_repository=FakeBigQueryRepository(),
+    ).test_client()
+
+    response = client.get("/statistics")
+
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert "BigQuery analytics" in html
+    assert "4-6 statistics" in html
+    assert "Average delay by stop" in html
+    assert "Delay by direction" not in html
+    assert "Delay progression" not in html
+    assert "Most problematic stops" in html
+    assert "Oktogon M" in html
+    assert "Ujbuda-kozpont M" in html
+    assert "80%" in html
 
 
 def test_base_template_includes_firebase_web_config_when_configured():
@@ -162,6 +231,10 @@ def test_index_page_renders_selected_stop_departures():
         def save_search_collection_batch(self, batch):
             self.saved_batches.append(batch)
 
+    class FakeBigQueryRepository:
+        def save_search_collection_batch(self, batch):
+            raise AssertionError("station search must not write to BigQuery")
+
     class FakeBkkClient:
         def get_stop_departures(self, stop_id, limit=8):
             assert stop_id == "BKK_TEST_STOP"
@@ -219,9 +292,10 @@ def test_index_page_renders_selected_stop_departures():
 
     fake_repository = FakeFirestoreRepository()
     client = create_app(
-        config=_test_config(),
+        config=replace(_test_config(), use_bigquery=True),
         bkk_client=FakeBkkClient(),
         firestore_repository=fake_repository,
+        bigquery_repository=FakeBigQueryRepository(),
     ).test_client()
 
     response = client.get("/?station=Oktogon%20M&station_id=BKK_TEST_STOP")

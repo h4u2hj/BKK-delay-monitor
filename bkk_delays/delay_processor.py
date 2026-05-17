@@ -37,13 +37,11 @@ def create_observation_id(
         collected_at: Optional[datetime] = None,
 ) -> str:
     if collected_at is not None:
-        collected_minute = _round_down_to_minute(collected_at)
         natural_key = "|".join(
             (
                 trip_id,
                 stop_id,
                 scheduled_departure.isoformat(),
-                collected_minute.isoformat(),
             )
         )
         return str(uuid.uuid5(uuid.NAMESPACE_URL, natural_key))
@@ -64,15 +62,12 @@ def create_observation_duplicate_key(
         trip_id: str,
         stop_id: str,
         scheduled_departure: datetime,
-        collected_at: datetime,
 ) -> str:
-    collected_minute = _round_down_to_minute(collected_at)
     return "|".join(
         (
             trip_id,
             stop_id,
             scheduled_departure.isoformat(),
-            collected_minute.isoformat(),
         )
     )
 

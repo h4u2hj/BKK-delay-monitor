@@ -81,8 +81,7 @@ def test_search_collection_batch_to_firestore_documents_uses_target_schema():
     assert observation["stop_id"] == "BKK_STOP_1"
     assert observation["delay_category"] == "on_time"
     assert observation["duplicate_key"] == (
-        "BKK_TRIP_1|BKK_STOP_1|2026-05-16T14:00:00+00:00|"
-        "2026-05-16T14:00:00+00:00"
+        "BKK_TRIP_1|BKK_STOP_1|2026-05-16T14:00:00+00:00"
     )
 
 
@@ -111,13 +110,14 @@ def test_firestore_repository_uploads_each_batch_entry_with_merge():
     ]
 
 
-def test_firestore_repository_skips_duplicate_delay_observation_by_trip_and_stop():
+def test_firestore_repository_skips_duplicate_delay_observation_by_duplicate_key():
     client = FakeFirestoreClient(
         documents={
             DELAY_OBSERVATIONS_COLLECTION: {
-                "OBS_1": {
-                    "trip_id": "BKK_TRIP_1",
-                    "stop_id": "BKK_STOP_1",
+                "EXISTING_OBS": {
+                    "duplicate_key": (
+                        "BKK_TRIP_1|BKK_STOP_1|2026-05-16T14:00:00+00:00"
+                    ),
                 },
             },
         }
@@ -133,6 +133,31 @@ def test_firestore_repository_skips_duplicate_delay_observation_by_trip_and_stop
         ("stops", "BKK_STOP_1", True),
         ("collection_runs", "RUN_1", True),
     ]
+
+
+def test_firestore_repository_skips_legacy_duplicate_without_new_duplicate_key():
+    now = datetime(2026, 5, 16, 14, 0, tzinfo=timezone.utc)
+    client = FakeFirestoreClient(
+        documents={
+            DELAY_OBSERVATIONS_COLLECTION: {
+                "LEGACY_OBS": {
+                    "trip_id": "BKK_TRIP_1",
+                    "stop_id": "BKK_STOP_1",
+                    "scheduled_departure": now,
+                    "duplicate_key": (
+                        "BKK_TRIP_1|BKK_STOP_1|2026-05-16T14:00:00+00:00|"
+                        "2026-05-16T13:40:00+00:00"
+                    ),
+                },
+            },
+        }
+    )
+    repository = FirestoreRepository(_config(use_firestore=True), client=client)
+
+    summary = repository.save_search_collection_batch(_batch())
+
+    assert summary.delay_observations_saved == 0
+    assert summary.duplicate_observations_skipped == 1
 
 
 def test_firestore_repository_does_not_treat_same_trip_at_different_stop_as_duplicate():
@@ -190,6 +215,13 @@ def test_history_entry_is_constructed_from_firestore_documents():
         realtime_departure="14:05",
         delay_seconds="0",
     )
+
+
+def test_firestore_repository_returns_empty_history_for_deleted_collection():
+    client = FakeFirestoreClient(documents={})
+    repository = FirestoreRepository(_config(use_firestore=True), client=client)
+
+    assert repository.list_recent_history_entries(limit=50) == []
 
 
 def test_firestore_repository_reports_missing_adc_without_startup_traceback(
@@ -261,7 +293,7 @@ class FakeFirestoreBatch:
     def set(self, document_ref, document, merge=False):
         self.writes.append((document_ref.collection_name, document_ref.document_id, merge))
 
-    def commit(self):
+    def commit(self, timeout=None):
         self.client.committed_writes.extend(self.writes)
 
 
@@ -280,6 +312,12 @@ class FakeCollectionReference:
             value,
         )
 
+    def order_by(self, field_name, direction=None):
+        return FakeQuery(self.client, self.collection_name).order_by(
+            field_name,
+            direction=direction,
+        )
+
 
 class FakeDocumentReference:
     def __init__(self, client, collection_name, document_id):
@@ -287,7 +325,7 @@ class FakeDocumentReference:
         self.collection_name = collection_name
         self.document_id = document_id
 
-    def get(self, transaction=None):
+    def get(self, transaction=None, timeout=None):
         document = self.client.documents.get(self.collection_name, {}).get(
             self.document_id
         )
@@ -304,11 +342,21 @@ class FakeDocumentSnapshot:
 
 
 class FakeQuery:
-    def __init__(self, client, collection_name, filters=None, limit_count=None):
+    def __init__(
+        self,
+        client,
+        collection_name,
+        filters=None,
+        limit_count=None,
+        order_by_field=None,
+        order_by_direction=None,
+    ):
         self.client = client
         self.collection_name = collection_name
         self.filters = filters or []
         self.limit_count = limit_count
+        self.order_by_field = order_by_field
+        self.order_by_direction = order_by_direction
 
     def where(self, field_name, operation, value):
         return FakeQuery(
@@ -316,6 +364,8 @@ class FakeQuery:
             self.collection_name,
             [*self.filters, (field_name, operation, value)],
             self.limit_count,
+            self.order_by_field,
+            self.order_by_direction,
         )
 
     def limit(self, count):
@@ -324,9 +374,21 @@ class FakeQuery:
             self.collection_name,
             self.filters,
             count,
+            self.order_by_field,
+            self.order_by_direction,
         )
 
-    def stream(self, transaction=None):
+    def order_by(self, field_name, direction=None):
+        return FakeQuery(
+            self.client,
+            self.collection_name,
+            self.filters,
+            self.limit_count,
+            field_name,
+            direction,
+        )
+
+    def stream(self, transaction=None, timeout=None):
         documents = self.client.documents.get(self.collection_name, {})
         matches = []
         for document in documents.values():
@@ -335,6 +397,12 @@ class FakeQuery:
                 for field_name, operation, value in self.filters
             ):
                 matches.append(FakeDocumentSnapshot(document))
+
+        if self.order_by_field:
+            matches.sort(
+                key=lambda snapshot: snapshot.to_dict().get(self.order_by_field),
+                reverse=self.order_by_direction == "DESCENDING",
+            )
 
         if self.limit_count is not None:
             matches = matches[: self.limit_count]

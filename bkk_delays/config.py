@@ -34,6 +34,7 @@ class AppConfig:
     bkk_api_dialect: str = "mobile"
     bkk_api_version: str = "2"
     bkk_api_timeout_seconds: float = 5.0
+    firestore_timeout_seconds: float = 8.0
     firebase_api_key: str = ""
     firebase_auth_domain: str = ""
     firebase_project_id: str = ""
@@ -82,6 +83,7 @@ def load_config() -> AppConfig:
         bkk_api_dialect=os.getenv("BKK_API_DIALECT", "mobile").strip() or "mobile",
         bkk_api_version=os.getenv("BKK_API_VERSION", "2").strip() or "2",
         bkk_api_timeout_seconds=float(os.getenv("BKK_API_TIMEOUT_SECONDS", "5")),
+        firestore_timeout_seconds=float(os.getenv("FIRESTORE_TIMEOUT_SECONDS", "8")),
         firebase_api_key=os.getenv("FIREBASE_API_KEY", "").strip(),
         firebase_auth_domain=os.getenv("FIREBASE_AUTH_DOMAIN", "").strip(),
         firebase_project_id=os.getenv("FIREBASE_PROJECT_ID", "").strip(),

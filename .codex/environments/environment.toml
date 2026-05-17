@@ -3,10 +3,7 @@ version = 1
 name = "BKK delay monitor"
 
 [setup]
-script = '''
-.\.venv\Scripts\python -m pip install -e ".[dev]"
-.\.venv\Scripts\python -m bkk_delays
-'''
+script = ".\\.venv\\Scripts\\python -m pip install -e \".[dev]\""
 
 [cleanup]
 script = '''
