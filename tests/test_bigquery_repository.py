@@ -24,7 +24,6 @@ def _config(use_bigquery: bool) -> AppConfig:
         bigquery_table=DELAY_OBSERVATIONS_TABLE,
         use_firestore=False,
         use_bigquery=use_bigquery,
-        use_sample_data=True,
     )
 
 

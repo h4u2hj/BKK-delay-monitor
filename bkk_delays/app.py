@@ -113,7 +113,7 @@ def create_app(
     @app.get("/statistics")
     def statistics():
         statistics_error = ""
-        source_label = "Sample statistics"
+        source_label = "Recent search statistics"
         stats = empty_statistics()
 
         if app_config.use_bigquery:

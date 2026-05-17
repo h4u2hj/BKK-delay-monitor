@@ -63,7 +63,6 @@ bkk-delays_project/
     bigquery_repository.py
     collect_bkk_data.py
     models.py
-    sample_data.py
     logging_config.py
     templates/
       base.html
@@ -77,7 +76,6 @@ bkk-delays_project/
         app.css
   tests/
     test_delay_processor.py
-    test_sample_data.py
 ```
 
 Data flow clarification:
@@ -146,7 +144,6 @@ Tasks:
   - `BIGQUERY_TABLE`
   - `USE_FIRESTORE`
   - `USE_BIGQUERY`
-  - `USE_SAMPLE_DATA`
   - Cloud repositories use Google Application Default Credentials only; the app
     does not load JSON credential files directly.
 - Implement `models.py` using dataclasses or typed dictionaries for:
@@ -162,7 +159,7 @@ Tasks:
 Acceptance criteria:
 
 - Configuration has safe defaults for local development.
-- Missing cloud credentials do not crash the app when sample-data mode is enabled.
+- Missing cloud credentials do not crash the app when cloud repositories are disabled.
 - Data fields match the planned Firestore and BigQuery schema.
 
 ### Phase 3 - BKK API Client
@@ -258,7 +255,7 @@ Tasks:
 - Implement `bigquery_repository.py` as a read-only analytics repository. It must not expose insert/update/save methods.
 - Partition BigQuery by `created_at` in the GCP-managed sync or follow-up SQL setup.
 - Cluster BigQuery by `route_id` and `stop_id` where supported.
-- Make read repositories no-op or sample-backed when cloud configuration is disabled.
+- Make read repositories no-op or in-memory backed when cloud configuration is disabled.
 
 Acceptance criteria:
 
@@ -305,7 +302,7 @@ Tasks:
   - `/logs` API call and collection logs
 - Use Bootstrap templates under `templates/`.
 - Keep the UI simple and functional, not a marketing page.
-- Show sample-data warnings when running without cloud persistence.
+- Show clear empty states when running without cloud persistence.
 
 Acceptance criteria:
 
@@ -330,7 +327,7 @@ Tasks:
 - Group station-level statistics by both station and `headsign` so both directions appear as separate rows.
 - Group `Újbuda-központ M` and `Móricz Zsigmond körtér M` headsigns together as the same direction.
 - Group delay-ratio time periods by `scheduled_departure`, not by the observation search time.
-- If BigQuery is disabled, show sample analytics from generated sample observations.
+- If BigQuery is disabled, show analytics from the latest in-memory station search.
 
 Acceptance criteria:
 
@@ -340,31 +337,29 @@ Acceptance criteria:
 - Empty datasets produce friendly empty states.
 - No station search, collection, or repository method writes directly to BigQuery.
 
-### Phase 9 - Sample Data and Local Demo Mode
+### Phase 9 - Local Demo Mode
 
 Tasks:
 
-- Implement `sample_data.py`.
-- Provide deterministic sample observations for development and grading demos.
 - Ensure the app can run without real BKK API credentials or GCP credentials.
-- Clearly label sample mode in the UI.
+- Clearly label disabled cloud-backed views in the UI.
 
 Acceptance criteria:
 
-- Fresh checkout can run locally and demonstrate the main flows.
+- Fresh checkout can run locally and render the main views.
 - Tests can run without network or cloud access.
 
 ### Phase 10 - Testing and Documentation
 
 Tasks:
 
-- Add focused unit tests for processing and sample analytics.
+- Add focused unit tests for processing and in-memory analytics.
 - Add README sections:
   - project purpose
   - architecture
   - setup
   - environment variables
-  - local sample mode
+  - local mode without cloud persistence
   - real API/cloud mode
   - BigQuery schema
   - known duplicate behavior
@@ -459,8 +454,8 @@ Suggested collections:
 - `monitored_stops`: configured tram 4-6 stops.
 
 Firestore is the application write path. BigQuery is read-only in this app and
-is filled by the GCP Firestore-to-BigQuery sync. Local sample mode remains the
-fallback when cloud configuration is unavailable.
+is filled by the GCP Firestore-to-BigQuery sync. In-memory page state remains
+the fallback when cloud configuration is unavailable.
 
 ## GUI Requirements
 
@@ -498,9 +493,9 @@ Pages:
 Follow this order unless the user asks otherwise:
 
 1. Fix package structure and dependencies.
-2. Add config, models, and sample data.
+2. Add config and models.
 3. Implement delay processing and unit tests.
-4. Build Flask app with sample mode pages.
+4. Build Flask app with local-mode pages.
 5. Add collection workflow with a mocked/sample client path.
 6. Add real BKK API client.
 7. Add Firestore repository and station/collection persistence.
@@ -517,8 +512,8 @@ The project is done when:
 - The user can trigger a collection run from the GUI.
 - Delay observations are normalized into the target schema.
 - Latest observations are visible in the GUI.
-- Statistics are visible in the GUI from BigQuery or sample data.
-- The code handles missing credentials gracefully in sample mode.
+- Statistics are visible in the GUI from BigQuery or the latest in-memory station search.
+- The code handles missing credentials gracefully when cloud repositories are disabled.
 - Tests pass for delay processing.
 - README explains setup, architecture, schema, and duplicate semantics.
 

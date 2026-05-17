@@ -29,7 +29,6 @@ class AppConfig:
     bigquery_table: str
     use_firestore: bool
     use_bigquery: bool
-    use_sample_data: bool
     bkk_api_dialect: str = "mobile"
     bkk_api_version: str = "2"
     bkk_api_timeout_seconds: float = 5.0
@@ -53,7 +52,6 @@ def load_config() -> AppConfig:
                        or "delay_observations",
         use_firestore=_env_bool("USE_FIRESTORE", False),
         use_bigquery=_env_bool("USE_BIGQUERY", False),
-        use_sample_data=_env_bool("USE_SAMPLE_DATA", True),
         bkk_api_dialect=os.getenv("BKK_API_DIALECT", "mobile").strip() or "mobile",
         bkk_api_version=os.getenv("BKK_API_VERSION", "2").strip() or "2",
         bkk_api_timeout_seconds=float(os.getenv("BKK_API_TIMEOUT_SECONDS", "5")),

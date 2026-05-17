@@ -23,7 +23,6 @@ def _config() -> AppConfig:
         bigquery_table="delay_observations",
         use_firestore=True,
         use_bigquery=False,
-        use_sample_data=False,
     )
 
 

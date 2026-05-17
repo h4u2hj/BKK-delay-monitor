@@ -206,7 +206,7 @@ def statistics_from_observations(
     observations: Sequence[DelayObservation],
     stops: Sequence[Stop] = (),
 ) -> BigQueryStatistics:
-    """Build sample-mode statistics from in-memory normalized observations."""
+    """Build statistics from in-memory normalized observations."""
 
     stop_names = {stop.id: stop.name for stop in stops}
     observations = [
