@@ -127,6 +127,8 @@ def test_predicted_delay_by_station_uses_bigquery_ml_model_at_current_time():
     assert f"`test-project.bkk_analytics.{DELAY_PREDICTION_MODEL}`" in client.queries[0]
     assert "observation.route_id IN ('BKK_3040', 'BKK_3060')" in client.queries[0]
     assert "route_id,\n        headsign" not in client.queries[0]
+    assert "moricz zsigmond korter m" in client.queries[0]
+    assert " / " in client.queries[0]
     assert "CURRENT_DATETIME('Europe/Budapest')" in client.queries[0]
     assert "prediction_context" in client.queries[0]
     assert "current_time.prediction_time" not in client.queries[0]
@@ -193,6 +195,10 @@ def test_bigquery_sql_queries_are_loaded_from_sql_file():
         "predicted_delay_by_station"
     ]
     assert "route_id,\n        headsign" not in queries["predicted_delay_by_station"]
+    assert "móricz zsigmond körtér m" in queries[
+        "predicted_delay_by_station"
+    ]
+    assert " / " in queries["predicted_delay_by_station"]
     assert "CURRENT_DATETIME('Europe/Budapest')" in queries[
         "predicted_delay_by_station"
     ]

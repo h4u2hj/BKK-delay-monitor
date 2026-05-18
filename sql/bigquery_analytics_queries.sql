@@ -2,11 +2,20 @@
 WITH prediction_context AS (
   SELECT CURRENT_DATETIME('Europe/Budapest') AS prediction_time
 ),
-station_inputs AS (
+station_candidates AS (
   SELECT
     observation.stop_id,
-    COALESCE(ANY_VALUE(stop.name), observation.stop_id) AS stop_name,
-    COALESCE(NULLIF(observation.headsign, ''), 'unknown') AS headsign,
+    stop.name AS stop_name,
+    CASE
+      WHEN LOWER(COALESCE(NULLIF(observation.headsign, ''), 'unknown')) IN (
+        'ujbuda-kozpont m',
+        'újbuda-központ m',
+        'moricz zsigmond korter m',
+        'móricz zsigmond körtér m'
+      )
+        THEN 'Újbuda-központ M / Móricz Zsigmond körtér M'
+      ELSE COALESCE(NULLIF(observation.headsign, ''), 'unknown')
+    END AS headsign,
     context.prediction_time,
     EXTRACT(HOUR FROM context.prediction_time) AS hour_of_day,
     SIN(
@@ -21,10 +30,24 @@ station_inputs AS (
     ON stop.id = observation.stop_id
   WHERE observation.route_id IN ('BKK_3040', 'BKK_3060')
     AND observation.stop_id IS NOT NULL
+),
+station_inputs AS (
+  SELECT
+    stop_id,
+    COALESCE(ANY_VALUE(stop_name), stop_id) AS stop_name,
+    headsign,
+    prediction_time,
+    hour_of_day,
+    hour_sin,
+    hour_cos
+  FROM station_candidates
   GROUP BY
-    observation.stop_id,
-    COALESCE(NULLIF(observation.headsign, ''), 'unknown'),
-    context.prediction_time
+    stop_id,
+    headsign,
+    prediction_time,
+    hour_of_day,
+    hour_sin,
+    hour_cos
 ),
 predictions AS (
   SELECT *

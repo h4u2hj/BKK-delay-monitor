@@ -114,6 +114,8 @@ MONITORED_STOPS: tuple[MonitoredStop, ...] = (
     MonitoredStop("BKK_F00925", "Jaszai Mari ter", ("4", "6"), "Szell Kalman direction"),
     MonitoredStop("BKK_F00935", "Nyugati palyaudvar M", ("4", "6"), "Ujbuda / Moricz direction"),
     MonitoredStop("BKK_F00933", "Nyugati palyaudvar M", ("4", "6"), "Szell Kalman direction"),
+    MonitoredStop("BKK_F01082", "Oktogon M", ("4", "6"), "Szell Kalman direction"),
+    MonitoredStop("BKK_F01081", "Oktogon M", ("4", "6"), "Ujbuda / Moricz direction"),
     MonitoredStop("BKK_F01037", "Kiraly utca / Erzsebet korut", ("4", "6"), "Ujbuda / Moricz direction"),
     MonitoredStop("BKK_F01035", "Kiraly utca / Erzsebet korut", ("4", "6"), "Szell Kalman direction"),
     MonitoredStop("BKK_F01169", "Blaha Lujza ter M", ("4", "6"), "Ujbuda / Moricz direction"),

@@ -16,7 +16,16 @@ OPTIONS (
 WITH training_rows AS (
   SELECT
     stop_id,
-    COALESCE(NULLIF(headsign, ''), 'unknown') AS headsign,
+    CASE
+      WHEN LOWER(COALESCE(NULLIF(headsign, ''), 'unknown')) IN (
+        'ujbuda-kozpont m',
+        'újbuda-központ m',
+        'moricz zsigmond korter m',
+        'móricz zsigmond körtér m'
+      )
+        THEN 'Újbuda-központ M / Móricz Zsigmond körtér M'
+      ELSE COALESCE(NULLIF(headsign, ''), 'unknown')
+    END AS headsign,
     EXTRACT(HOUR FROM scheduled_departure) AS hour_of_day,
     SIN(2 * ACOS(-1) * EXTRACT(HOUR FROM scheduled_departure) / 24) AS hour_sin,
     COS(2 * ACOS(-1) * EXTRACT(HOUR FROM scheduled_departure) / 24) AS hour_cos,
@@ -52,7 +61,16 @@ FROM ML.EVALUATE(
 WITH station_inputs AS (
   SELECT DISTINCT
     stop_id,
-    COALESCE(NULLIF(headsign, ''), 'unknown') AS headsign,
+    CASE
+      WHEN LOWER(COALESCE(NULLIF(headsign, ''), 'unknown')) IN (
+        'ujbuda-kozpont m',
+        'újbuda-központ m',
+        'moricz zsigmond korter m',
+        'móricz zsigmond körtér m'
+      )
+        THEN 'Újbuda-központ M / Móricz Zsigmond körtér M'
+      ELSE COALESCE(NULLIF(headsign, ''), 'unknown')
+    END AS headsign,
     8 AS hour_of_day,
     SIN(2 * ACOS(-1) * 8 / 24) AS hour_sin,
     COS(2 * ACOS(-1) * 8 / 24) AS hour_cos
