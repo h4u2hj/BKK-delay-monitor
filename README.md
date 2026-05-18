@@ -38,6 +38,27 @@ User ADC through gcloud:
 gcloud auth application-default login
 ```
 
+## Scheduled Cloud Function
+
+The scheduled collector entry point is `collect_bkk_data` in `main.py`. Deploy it
+as a Cloud Run Function with the function name passed as the entry point, not as
+the container command:
+
+```powershell
+gcloud functions deploy collect_bkk_data `
+  --gen2 `
+  --runtime=python312 `
+  --region=europe-west1 `
+  --source=. `
+  --entry-point=collect_bkk_data `
+  --trigger-topic=<pubsub-topic>
+```
+
+If deploying the same source directly as a Cloud Run service, the included
+`Procfile` starts Functions Framework with `collect_bkk_data` as the target.
+Do not set the Cloud Run container command to `collect_bkk_data`; that makes the
+container shell look for an executable with that name and exits with code 127.
+
 ## BigQuery Analytics
 
 Keep `USE_BIGQUERY=false` to turn off statistics. The statistics page will then
