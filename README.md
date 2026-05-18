@@ -59,6 +59,22 @@ If deploying the same source directly as a Cloud Run service, the included
 Do not set the Cloud Run container command to `collect_bkk_data`; that makes the
 container shell look for an executable with that name and exits with code 127.
 
+For buildpack-based Cloud Run function builds, the function target has to be
+passed through the buildpack environment variable names:
+
+```text
+GOOGLE_FUNCTION_TARGET=collect_bkk_data
+GOOGLE_FUNCTION_SIGNATURE_TYPE=cloudevent
+GOOGLE_FUNCTION_SOURCE=main.py
+GOOGLE_RUNTIME_VERSION=3.14.0
+```
+
+Cloud Build trigger substitutions such as `_FUNCTION_TARGET` are only template
+variables. They do not configure Functions Framework unless the build command
+maps them into the `GOOGLE_FUNCTION_*` build environment variables. The
+repository includes `project.toml` so Google Cloud buildpacks receive these
+settings during remote builds.
+
 ## BigQuery Analytics
 
 Keep `USE_BIGQUERY=false` to turn off statistics. The statistics page will then

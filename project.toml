@@ -1,0 +1,15 @@
+[[build.env]]
+name = "GOOGLE_FUNCTION_TARGET"
+value = "collect_bkk_data"
+
+[[build.env]]
+name = "GOOGLE_FUNCTION_SIGNATURE_TYPE"
+value = "cloudevent"
+
+[[build.env]]
+name = "GOOGLE_FUNCTION_SOURCE"
+value = "main.py"
+
+[[build.env]]
+name = "GOOGLE_RUNTIME_VERSION"
+value = "3.14.0"
