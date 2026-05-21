@@ -107,10 +107,6 @@ SELECT
   AVG(delay_seconds) AS average_delay_seconds
 FROM `{delay_observations_table}`
 WHERE route_id IN ('BKK_3040', 'BKK_3060')
-  AND scheduled_departure >= DATETIME_SUB(
-    DATETIME(CURRENT_TIMESTAMP(), 'Europe/Budapest'),
-    INTERVAL @hours HOUR
-  )
 GROUP BY period_start
 ORDER BY period_start;
 

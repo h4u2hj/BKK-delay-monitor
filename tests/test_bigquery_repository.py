@@ -156,6 +156,8 @@ def test_delayed_ratio_by_time_period_includes_average_delay_by_departure_hour()
     assert rows[0].average_delay_seconds == 96.5
     assert "DATETIME_TRUNC(scheduled_departure, HOUR)" in client.queries[0]
     assert "AVG(delay_seconds) AS average_delay_seconds" in client.queries[0]
+    assert "@hours" not in client.queries[0]
+    assert "DATETIME_SUB" not in client.queries[0]
     assert "created_at" not in client.queries[0]
 
 
@@ -182,12 +184,8 @@ def test_bigquery_sql_queries_are_loaded_from_sql_file():
     assert "AVG(delay_seconds) AS average_delay_seconds" in queries[
         "delayed_ratio_by_time_period"
     ]
-    assert (
-        "scheduled_departure >= DATETIME_SUB(\n"
-        "    DATETIME(CURRENT_TIMESTAMP(), 'Europe/Budapest'),\n"
-        "    INTERVAL @hours HOUR\n"
-        "  )"
-    ) in queries["delayed_ratio_by_time_period"]
+    assert "@hours" not in queries["delayed_ratio_by_time_period"]
+    assert "DATETIME_SUB" not in queries["delayed_ratio_by_time_period"]
     assert "created_at" not in queries["delayed_ratio_by_time_period"]
     assert "{delay_prediction_model}" in queries["predicted_delay_by_station"]
     assert "ML.PREDICT" in queries["predicted_delay_by_station"]

@@ -126,14 +126,10 @@ class BigQueryRepository:
             _average_delay_by_stop_from_row,
         )
 
-    def delayed_ratio_by_time_period(
-        self,
-        hours_back: int = 24,
-    ) -> list[DelayedRatioByPeriod]:
+    def delayed_ratio_by_time_period(self) -> list[DelayedRatioByPeriod]:
         return self._query_rows(
             self._render_query("delayed_ratio_by_time_period"),
             _delayed_ratio_by_period_from_row,
-            [scalar_query_parameter("hours", "INT64", hours_back)],
         )
 
     def most_problematic_stops(self) -> list[ProblematicStop]:
@@ -152,17 +148,11 @@ class BigQueryRepository:
         self,
         sql: str,
         mapper: Callable[[Any], T],
-        query_parameters: Optional[Sequence[Any]] = None,
     ) -> list[T]:
         client = self._require_client()
-        job_config = None
-        if bigquery is not None and query_parameters:
-            job_config = bigquery.QueryJobConfig(
-                query_parameters=list(query_parameters)
-            )
 
         try:
-            rows = client.query(sql, job_config=job_config).result()
+            rows = client.query(sql).result()
             return [mapper(row) for row in rows]
         except Exception as exc:
             raise BigQueryRepositoryError(
@@ -317,12 +307,6 @@ def empty_statistics() -> BigQueryStatistics:
 
 def _strip_trailing_semicolon(sql: str) -> str:
     return sql[:-1].rstrip() if sql.endswith(";") else sql
-
-
-def scalar_query_parameter(name: str, parameter_type: str, value: Any) -> Any:
-    if bigquery is None:
-        return (name, parameter_type, value)
-    return bigquery.ScalarQueryParameter(name, parameter_type, value)
 
 
 def _average_delay_by_stop_from_row(row: Any) -> AverageDelayByStop:
