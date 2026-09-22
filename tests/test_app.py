@@ -3,14 +3,15 @@ from datetime import datetime, timezone
 
 from bkk_delays.app import create_app
 from bkk_delays.bigquery_repository import (
-    AverageDelayByStop,
     BigQueryStatistics,
-    DelayedRatioByPeriod,
-    PredictedDelayByStation,
-    ProblematicStop,
+    DailyDelayTrend,
+    DelayCategoryBreakdown,
+    HourlyDelayTrend,
+    KpiSummary,
+    StopDelayRanking,
+    TimePeriodDelayMatrix,
 )
 from bkk_delays.config import AppConfig
-from bkk_delays.firestore_repository import FirestoreHistoryEntry
 from bkk_delays.models import (
     CollectionRun,
     DelayObservation,
@@ -19,6 +20,7 @@ from bkk_delays.models import (
     StationSearchResult,
     Stop,
 )
+from bkk_delays.postgresql_repository import PostgreSQLHistoryEntry
 
 
 def _test_config() -> AppConfig:
@@ -26,10 +28,9 @@ def _test_config() -> AppConfig:
         bkk_api_key="test-key",
         bkk_api_base_url="https://example.test",
         gcp_project_id="",
-        firestore_database_id="",
         bigquery_dataset="bkk_analytics",
         bigquery_table="delay_observations",
-        use_firestore=False,
+        use_postgres=False,
         use_bigquery=False,
     )
 
@@ -74,39 +75,41 @@ def test_statistics_page_renders_empty_state_without_bigquery_data():
 def test_statistics_page_renders_bigquery_statistics():
     class FakeBigQueryRepository:
         def load_statistics(self):
-            now = datetime(2026, 5, 16, 14, 0, tzinfo=timezone.utc)
             return BigQueryStatistics(
-                average_delay_by_stop=(
-                    AverageDelayByStop(
-                        "BKK_STOP_1",
+                kpi_summary=KpiSummary(
+                    avg_delay_minutes=2.25,
+                    max_delay_minutes=8.0,
+                    observation_count=20,
+                    delayed_ratio=0.8,
+                    significant_or_severe_count=4,
+                ),
+                stop_delay_ranking=(
+                    StopDelayRanking(
                         "Oktogon M",
                         "Ujbuda-kozpont M",
-                        5,
-                        120.0,
+                        3.5,
+                        2,
+                        10,
                     ),
                 ),
-                delayed_ratio_by_period=(
-                    DelayedRatioByPeriod(now, 5, 4, 0.8, 96.5),
-                ),
-                most_problematic_stops=(
-                    ProblematicStop(
-                        "BKK_STOP_1",
-                        "Oktogon M",
-                        "Ujbuda-kozpont M",
-                        5,
-                        120.0,
-                        0.8,
-                        1,
+                daily_delay_trend=(
+                    DailyDelayTrend(
+                        datetime(2026, 5, 16, tzinfo=timezone.utc).date(),
+                        "4",
+                        2.1,
+                        12,
                     ),
                 ),
-                predicted_delay_by_station=(
-                    PredictedDelayByStation(
-                        "BKK_STOP_1",
-                        "Oktogon M",
-                        "Ujbuda-kozpont M",
-                        now,
-                        75.5,
-                    ),
+                hourly_delay_trend=(
+                    HourlyDelayTrend(0, 1.0, 3),
+                    HourlyDelayTrend(0, 2.0, 1),
+                    HourlyDelayTrend(23, 3.2, 5),
+                ),
+                delay_category_breakdown=(
+                    DelayCategoryBreakdown("minor delay", 14),
+                ),
+                time_period_delay_matrix=(
+                    TimePeriodDelayMatrix("4", "afternoon peak", 2.4, 8),
                 ),
             )
 
@@ -122,25 +125,36 @@ def test_statistics_page_renders_bigquery_statistics():
     html = response.get_data(as_text=True)
     assert "BigQuery analytics" in html
     assert "4-6 statistics" in html
-    assert "Average delay by stop" in html
-    assert "Avg delay" in html
-    assert "Predicted delay now" in html
+    assert "Data refreshed every night" in html
+    assert "Average delay" in html
+    assert "Worst stops" in html
+    assert "Daily delay trend" in html
+    assert "Hourly delay trend" in html
+    assert "Delay categories" in html
+    assert "Time period matrix" in html
+    assert "Predicted delay now" not in html
+    assert "Route comparison" not in html
     assert "Delay by direction" not in html
     assert "Delay progression" not in html
-    assert "Most problematic stops" in html
     assert "Oktogon M" in html
     assert "Ujbuda-kozpont M" in html
-    assert "75.5 s" in html
-    assert "96.5 s" in html
-    assert "80%" in html
+    assert "2.25 min" in html
+    assert "3.50 min" in html
+    assert "00:00" in html
+    assert "23:00" in html
+    assert html.count("<td>00:00</td>") == 1
+    assert html.count("<td>23:00</td>") == 1
+    assert "minor delay" in html
+    assert "afternoon peak" in html
+    assert "80.0%" in html
 
 
-def test_history_page_renders_firestore_entries():
-    class FakeFirestoreRepository:
+def test_history_page_renders_postgresql_entries():
+    class FakePostgreSQLRepository:
         def list_recent_history_entries(self, limit=50):
             assert limit == 50
             return [
-                FirestoreHistoryEntry(
+                PostgreSQLHistoryEntry(
                     station_name="Oktogon M",
                     route_short_name="4",
                     destination_name="Ujbuda-kozpont M",
@@ -152,7 +166,7 @@ def test_history_page_renders_firestore_entries():
 
     client = create_app(
         config=_test_config(),
-        firestore_repository=FakeFirestoreRepository(),
+        postgresql_repository=FakePostgreSQLRepository(),
     ).test_client()
 
     response = client.get("/history")
@@ -214,7 +228,7 @@ def test_station_search_returns_station_results():
 
 
 def test_index_page_renders_selected_stop_departures():
-    class FakeFirestoreRepository:
+    class FakePostgreSQLRepository:
         def __init__(self):
             self.saved_batches = []
 
@@ -228,7 +242,7 @@ def test_index_page_renders_selected_stop_departures():
     class FakeBkkClient:
         def get_stop_departures(self, stop_id, limit=8):
             assert stop_id == "BKK_TEST_STOP"
-            assert limit == 8
+            assert limit == 3
             return SearchCollectionBatch(
                 routes=(Route(id="BKK_ROUTE_4", short_name="4", route_type="TRAM"),),
                 stops=(Stop(id="BKK_TEST_STOP", name="Oktogon M", lat=None, lon=None),),
@@ -280,11 +294,11 @@ def test_index_page_renders_selected_stop_departures():
                 ),
             )
 
-    fake_repository = FakeFirestoreRepository()
+    fake_repository = FakePostgreSQLRepository()
     client = create_app(
         config=replace(_test_config(), use_bigquery=True),
         bkk_client=FakeBkkClient(),
-        firestore_repository=fake_repository,
+        postgresql_repository=fake_repository,
         bigquery_repository=FakeBigQueryRepository(),
     ).test_client()
 

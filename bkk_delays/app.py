@@ -12,9 +12,9 @@ from bkk_delays.bigquery_repository import (
 )
 from bkk_delays.bkk_api import BkkApiClient, BkkApiError
 from bkk_delays.config import AppConfig, load_config
-from bkk_delays.firestore_repository import (
-    FirestoreRepository,
-    FirestoreRepositoryError,
+from bkk_delays.postgresql_repository import (
+    PostgreSQLRepository,
+    PostgreSQLRepositoryError,
 )
 from bkk_delays.models import DelayObservation, Route, Stop
 
@@ -22,15 +22,15 @@ from bkk_delays.models import DelayObservation, Route, Stop
 def create_app(
         config: Optional[AppConfig] = None,
         bkk_client: Optional[BkkApiClient] = None,
-        firestore_repository: Optional[FirestoreRepository] = None,
+        postgresql_repository: Optional[PostgreSQLRepository] = None,
         bigquery_repository: Optional[BigQueryRepository] = None,
 ) -> Flask:
     app = Flask(__name__)
     app_config = config or load_config()
     app.config["APP_CONFIG"] = app_config
     app.config["BKK_CLIENT"] = bkk_client or BkkApiClient(app_config)
-    app.config["FIRESTORE_REPOSITORY"] = (
-            firestore_repository or FirestoreRepository(app_config)
+    app.config["POSTGRESQL_REPOSITORY"] = (
+            postgresql_repository or PostgreSQLRepository(app_config)
     )
     app.config["BIGQUERY_REPOSITORY"] = (
             bigquery_repository or BigQueryRepository(app_config)
@@ -49,7 +49,7 @@ def create_app(
             try:
                 batch = app.config["BKK_CLIENT"].get_stop_departures(
                     station_id,
-                    limit=8,
+                    limit=3,
                 )
                 app.config["LAST_SEARCH_COLLECTION_BATCH"] = batch
                 route_by_id = {route.id: route for route in batch.routes}
@@ -63,9 +63,9 @@ def create_app(
                     for observation in batch.delay_observations
                 ]
                 try:
-                    repository = app.config["FIRESTORE_REPOSITORY"]
+                    repository = app.config["POSTGRESQL_REPOSITORY"]
                     repository.save_search_collection_batch(batch)
-                except FirestoreRepositoryError as exc:
+                except PostgreSQLRepositoryError as exc:
                     persistence_error = str(exc)
             except BkkApiError as exc:
                 departure_error = str(exc)
@@ -98,9 +98,9 @@ def create_app(
         observations = []
         history_error = ""
         try:
-            repository = app.config["FIRESTORE_REPOSITORY"]
+            repository = app.config["POSTGRESQL_REPOSITORY"]
             observations = repository.list_recent_history_entries(limit=50)
-        except FirestoreRepositoryError as exc:
+        except PostgreSQLRepositoryError as exc:
             history_error = str(exc)
 
         return render_template(

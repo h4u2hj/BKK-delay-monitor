@@ -1,11 +1,15 @@
 from datetime import datetime, timedelta, timezone
 
 from bkk_delays.bigquery_repository import (
-    DELAY_OBSERVATIONS_TABLE,
-    DELAY_PREDICTION_MODEL,
+    DASHBOARD_VIEW,
     BigQueryRepository,
     BigQueryStatistics,
+    DelayCategoryBreakdown,
+    HourlyDelayTrend,
+    KpiSummary,
     MORICZ_UJBUDA_HEADSIGN,
+    StopDelayRanking,
+    TimePeriodDelayMatrix,
     empty_statistics,
     load_named_sql_queries,
     statistics_from_observations,
@@ -19,10 +23,9 @@ def _config(use_bigquery: bool) -> AppConfig:
         bkk_api_key="test-key",
         bkk_api_base_url="https://example.test",
         gcp_project_id="test-project",
-        firestore_database_id="",
         bigquery_dataset="bkk_analytics",
-        bigquery_table=DELAY_OBSERVATIONS_TABLE,
-        use_firestore=False,
+        bigquery_table="delay_observations",
+        use_postgres=False,
         use_bigquery=use_bigquery,
     )
 
@@ -75,135 +78,113 @@ def test_bigquery_repository_does_not_expose_write_api():
     assert not hasattr(repository, "ensure_dataset_and_tables")
 
 
-def test_average_delay_by_stop_uses_readable_unlimited_sql():
+def test_load_statistics_reads_dashboard_view_sections():
     client = FakeBigQueryClient(
         query_results=[
             [
                 {
-                    "stop_id": "BKK_STOP_1",
+                    "avg_delay_minutes": 2.35,
+                    "max_delay_minutes": 9.1,
+                    "observation_count": 100,
+                    "delayed_ratio": 0.42,
+                    "significant_or_severe_count": 12,
+                }
+            ],
+            [
+                {
                     "stop_name": "Oktogon M",
                     "headsign": "Ujbuda-kozpont M",
-                    "observation_count": 3,
-                    "average_delay_seconds": 90.5,
+                    "avg_delay_minutes": 4.2,
+                    "significant_or_severe_count": 5,
+                    "observation_count": 25,
                 }
-            ]
-        ]
-    )
-    repository = BigQueryRepository(_config(use_bigquery=True), client=client)
-
-    rows = repository.average_delay_by_stop()
-
-    assert rows[0].stop_name == "Oktogon M"
-    assert rows[0].headsign == "Ujbuda-kozpont M"
-    assert rows[0].average_delay_seconds == 90.5
-    assert "LIMIT" not in client.queries[0]
-    assert "`test-project.bkk_analytics.delay_observations`" in client.queries[0]
-    assert "observation.route_id IN ('BKK_3040', 'BKK_3060')" in client.queries[0]
-    assert "REGEXP_REPLACE" not in client.queries[0]
-
-
-def test_predicted_delay_by_station_uses_bigquery_ml_model_at_current_time():
-    client = FakeBigQueryClient(
-        query_results=[
+            ],
             [
                 {
-                    "stop_id": "BKK_STOP_1",
-                    "stop_name": "Oktogon M",
-                    "headsign": "Ujbuda-kozpont M",
-                    "prediction_time": "2026-05-16T14:25:00",
-                    "predicted_delay_seconds": 75.5,
+                    "calendar_date": "2026-05-16",
+                    "route_number": "4",
+                    "avg_delay_minutes": 2.8,
+                    "observation_count": 50,
                 }
-            ]
-        ]
-    )
-    repository = BigQueryRepository(_config(use_bigquery=True), client=client)
-
-    rows = repository.predicted_delay_by_station()
-
-    assert rows[0].stop_name == "Oktogon M"
-    assert rows[0].headsign == "Ujbuda-kozpont M"
-    assert rows[0].predicted_delay_seconds == 75.5
-    assert "ML.PREDICT" in client.queries[0]
-    assert f"`test-project.bkk_analytics.{DELAY_PREDICTION_MODEL}`" in client.queries[0]
-    assert "observation.route_id IN ('BKK_3040', 'BKK_3060')" in client.queries[0]
-    assert "route_id,\n        headsign" not in client.queries[0]
-    assert "moricz zsigmond korter m" in client.queries[0]
-    assert " / " in client.queries[0]
-    assert "CURRENT_DATETIME('Europe/Budapest')" in client.queries[0]
-    assert "prediction_context" in client.queries[0]
-    assert "current_time.prediction_time" not in client.queries[0]
-    assert "LIMIT" not in client.queries[0]
-
-
-def test_delayed_ratio_by_time_period_includes_average_delay_by_departure_hour():
-    client = FakeBigQueryClient(
-        query_results=[
+            ],
             [
                 {
-                    "period_start": "2026-05-16T14:00:00",
+                    "observed_hour": 0,
+                    "avg_delay_minutes": 1.2,
+                    "observation_count": 10,
+                },
+                {
+                    "observed_hour": 0,
+                    "avg_delay_minutes": 2.2,
                     "observation_count": 5,
-                    "delayed_count": 4,
-                    "delayed_ratio": 0.8,
-                    "average_delay_seconds": 96.5,
+                },
+                {
+                    "observed_hour": 23,
+                    "avg_delay_minutes": 3.1,
+                    "observation_count": 4,
+                },
+            ],
+            [{"delay_category": "minor delay", "observation_count": 70}],
+            [
+                {
+                    "route_number": "6",
+                    "time_period": "afternoon peak",
+                    "avg_delay_minutes": 3.4,
+                    "observation_count": 40,
                 }
-            ]
+            ],
         ]
     )
     repository = BigQueryRepository(_config(use_bigquery=True), client=client)
 
-    rows = repository.delayed_ratio_by_time_period()
+    stats = repository.load_statistics()
 
-    assert rows[0].average_delay_seconds == 96.5
-    assert "DATETIME_TRUNC(scheduled_departure, HOUR)" in client.queries[0]
-    assert "AVG(delay_seconds) AS average_delay_seconds" in client.queries[0]
-    assert "@hours" not in client.queries[0]
-    assert "DATETIME_SUB" not in client.queries[0]
-    assert "created_at" not in client.queries[0]
+    assert stats.kpi_summary == KpiSummary(2.35, 9.1, 100, 0.42, 12)
+    assert stats.stop_delay_ranking == (
+        StopDelayRanking("Oktogon M", "Ujbuda-kozpont M", 4.2, 5, 25),
+    )
+    assert stats.delay_category_breakdown == (
+        DelayCategoryBreakdown("minor delay", 70),
+    )
+    assert len(stats.hourly_delay_trend) == 24
+    assert [row.observed_hour for row in stats.hourly_delay_trend] == list(range(24))
+    assert stats.hourly_delay_trend[0] == HourlyDelayTrend(0, 1.53, 15)
+    assert stats.hourly_delay_trend[23] == HourlyDelayTrend(23, 3.1, 4)
+    assert stats.time_period_delay_matrix == (
+        TimePeriodDelayMatrix("6", "afternoon peak", 3.4, 40),
+    )
+    assert len(client.queries) == 6
+    assert all(
+        f"`test-project.bkk_analytics.{DASHBOARD_VIEW}`" in query
+        for query in client.queries
+    )
+    assert all("delay_observations" not in query for query in client.queries)
+    assert not any("route comparison" in query.lower() for query in client.queries)
 
 
 def test_bigquery_sql_queries_are_loaded_from_sql_file():
     queries = load_named_sql_queries()
 
-    assert "predicted_delay_by_station" in queries
-    assert "average_delay_by_stop" in queries
-    assert "delay_by_direction" not in queries
-    assert "delay_progression_by_stop_sequence" not in queries
-    assert "most_problematic_stops" in queries
-    assert "{delay_observations_table}" in queries["average_delay_by_stop"]
-    assert "headsign" in queries["average_delay_by_stop"]
-    assert "móricz zsigmond körtér m" in queries["average_delay_by_stop"]
-    assert MORICZ_UJBUDA_HEADSIGN in queries["average_delay_by_stop"]
-    assert "observation.route_id IN ('BKK_3040', 'BKK_3060')" in queries[
-        "average_delay_by_stop"
+    assert set(queries) == {
+        "kpi_summary",
+        "stop_delay_ranking",
+        "daily_delay_trend",
+        "hourly_delay_trend",
+        "delay_category_breakdown",
+        "time_period_delay_matrix",
+    }
+    assert "route_comparison" not in queries
+    assert "{dashboard_view}" in queries["kpi_summary"]
+    assert "SAFE_DIVIDE(SUM(delayed_count), SUM(observation_count))" in queries[
+        "kpi_summary"
     ]
-    assert "REGEXP_REPLACE" not in queries["average_delay_by_stop"]
-    assert "LIMIT" not in queries["average_delay_by_stop"]
-    assert "DATETIME_TRUNC(scheduled_departure, HOUR)" in queries[
-        "delayed_ratio_by_time_period"
-    ]
-    assert "AVG(delay_seconds) AS average_delay_seconds" in queries[
-        "delayed_ratio_by_time_period"
-    ]
-    assert "@hours" not in queries["delayed_ratio_by_time_period"]
-    assert "DATETIME_SUB" not in queries["delayed_ratio_by_time_period"]
-    assert "created_at" not in queries["delayed_ratio_by_time_period"]
-    assert "{delay_prediction_model}" in queries["predicted_delay_by_station"]
-    assert "ML.PREDICT" in queries["predicted_delay_by_station"]
-    assert "observation.route_id IN ('BKK_3040', 'BKK_3060')" in queries[
-        "predicted_delay_by_station"
-    ]
-    assert "route_id,\n        headsign" not in queries["predicted_delay_by_station"]
-    assert "móricz zsigmond körtér m" in queries[
-        "predicted_delay_by_station"
-    ]
-    assert " / " in queries["predicted_delay_by_station"]
-    assert "CURRENT_DATETIME('Europe/Budapest')" in queries[
-        "predicted_delay_by_station"
-    ]
-    assert "prediction_context" in queries["predicted_delay_by_station"]
-    assert "current_time.prediction_time" not in queries[
-        "predicted_delay_by_station"
-    ]
+    assert "GENERATE_ARRAY(0, 23)" in queries["hourly_delay_trend"]
+    assert "observed_hour" in queries["hourly_delay_trend"]
+    assert "route_number" not in queries["hourly_delay_trend"]
+    assert "LIMIT 15" in queries["stop_delay_ranking"]
+    assert "delay_observations" not in "\n".join(queries.values())
+    assert "routes" not in "\n".join(queries.values())
+    assert "stops" not in "\n".join(queries.values())
 
 
 def test_statistics_from_observations_builds_sample_analytics():
@@ -213,8 +194,15 @@ def test_statistics_from_observations_builds_sample_analytics():
     )
 
     assert isinstance(stats, BigQueryStatistics)
-    assert stats.average_delay_by_stop[0].stop_name == "Oktogon M"
-    assert stats.average_delay_by_stop[0].headsign == MORICZ_UJBUDA_HEADSIGN
+    assert stats.kpi_summary is not None
+    assert stats.kpi_summary.observation_count == 1
+    assert stats.stop_delay_ranking[0].stop_name == "Oktogon M"
+    assert stats.stop_delay_ranking[0].headsign == MORICZ_UJBUDA_HEADSIGN
+    assert stats.daily_delay_trend[0].route_number == "4"
+    assert len(stats.hourly_delay_trend) == 24
+    assert stats.hourly_delay_trend[0].observed_hour == 0
+    assert stats.hourly_delay_trend[-1].observed_hour == 23
+    assert stats.delay_category_breakdown[0].delay_category == "on time"
 
 
 def test_statistics_from_observations_separates_same_stop_by_headsign():
@@ -241,11 +229,11 @@ def test_statistics_from_observations_separates_same_stop_by_headsign():
         batch.stops,
     )
 
-    assert [row.headsign for row in stats.average_delay_by_stop] == [
+    assert [row.headsign for row in stats.stop_delay_ranking] == [
         "Szell Kalman ter M",
         MORICZ_UJBUDA_HEADSIGN,
     ]
-    assert [row.stop_name for row in stats.average_delay_by_stop] == [
+    assert [row.stop_name for row in stats.stop_delay_ranking] == [
         "Oktogon M",
         "Oktogon M",
     ]
@@ -260,7 +248,7 @@ def test_statistics_from_observations_groups_ujbuda_and_moricz_headsigns():
         route_id=observation.route_id,
         stop_id=observation.stop_id,
         trip_id="BKK_TRIP_2",
-        headsign="Móricz Zsigmond körtér M",
+        headsign="Moricz Zsigmond korter M",
         direction_id=observation.direction_id,
         stop_sequence=observation.stop_sequence,
         scheduled_departure=observation.scheduled_departure,
@@ -275,43 +263,58 @@ def test_statistics_from_observations_groups_ujbuda_and_moricz_headsigns():
         batch.stops,
     )
 
-    assert len(stats.average_delay_by_stop) == 1
-    assert stats.average_delay_by_stop[0].headsign == MORICZ_UJBUDA_HEADSIGN
-    assert stats.average_delay_by_stop[0].observation_count == 2
+    assert len(stats.stop_delay_ranking) == 1
+    assert stats.stop_delay_ranking[0].headsign == MORICZ_UJBUDA_HEADSIGN
+    assert stats.stop_delay_ranking[0].observation_count == 2
 
 
-def test_statistics_from_observations_groups_period_by_scheduled_departure():
+def test_statistics_from_observations_groups_time_period_matrix():
     batch = _batch()
     observation = batch.delay_observations[0]
-    later_scheduled_departure = DelayObservation(
+    morning_departure = observation.scheduled_departure.replace(hour=5)
+    afternoon_departure = observation.scheduled_departure.replace(hour=13)
+    later_observation = DelayObservation(
         id="OBS_2",
         collection_run_id=observation.collection_run_id,
-        route_id=observation.route_id,
+        route_id="BKK_3060",
         stop_id=observation.stop_id,
         trip_id="BKK_TRIP_2",
         headsign=observation.headsign,
         direction_id=observation.direction_id,
         stop_sequence=observation.stop_sequence,
-        scheduled_departure=observation.scheduled_departure + timedelta(hours=2),
-        predicted_departure=observation.predicted_departure + timedelta(hours=2),
-        delay_seconds=180,
+        scheduled_departure=afternoon_departure,
+        predicted_departure=afternoon_departure + timedelta(minutes=2),
+        delay_seconds=120,
         delay_category="minor_delay",
+        created_at=observation.created_at,
+    )
+    morning_observation = DelayObservation(
+        id=observation.id,
+        collection_run_id=observation.collection_run_id,
+        route_id=observation.route_id,
+        stop_id=observation.stop_id,
+        trip_id=observation.trip_id,
+        headsign=observation.headsign,
+        direction_id=observation.direction_id,
+        stop_sequence=observation.stop_sequence,
+        scheduled_departure=morning_departure,
+        predicted_departure=morning_departure,
+        delay_seconds=observation.delay_seconds,
+        delay_category=observation.delay_category,
         created_at=observation.created_at,
     )
 
     stats = statistics_from_observations(
-        (*batch.delay_observations, later_scheduled_departure),
+        (morning_observation, later_observation),
         batch.stops,
     )
 
-    assert [row.period_start.hour for row in stats.delayed_ratio_by_period] == [
-        observation.scheduled_departure.hour,
-        later_scheduled_departure.scheduled_departure.hour,
+    assert [row.time_period for row in stats.time_period_delay_matrix] == [
+        "morning peak",
+        "afternoon peak",
     ]
-    assert [row.average_delay_seconds for row in stats.delayed_ratio_by_period] == [
-        observation.delay_seconds,
-        later_scheduled_departure.delay_seconds,
-    ]
+    assert stats.time_period_columns == ("morning peak", "afternoon peak")
+    assert stats.time_period_value("6", "afternoon peak").avg_delay_minutes == 2.0
 
 
 class FakeBigQueryClient:

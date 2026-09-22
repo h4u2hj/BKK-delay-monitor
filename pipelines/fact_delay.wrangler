@@ -1,0 +1,15 @@
+copy :observation_id :source_observation_id;
+copy :created_at :observed_at;
+copy :delay_category :source_delay_category;
+set-column :date_key exp:{created_at.getYear() * 10000 + created_at.getMonthValue() * 100 + created_at.getDayOfMonth()};
+set-type :date_key long;
+set-type :stop_sequence long;
+set-type :delay_seconds long;
+set-column :delay_minutes exp:{delay_seconds / 60.0};
+set-type :delay_minutes double;
+set-column :delay_category exp:{delay_seconds <= 60 ? 'on time' : delay_seconds <= 180 ? 'minor delay' : delay_seconds <= 300 ? 'significant delay' : 'severe delay'};
+set-column :event_hour exp:{created_at.getHour()};
+set-column :time_period exp:{event_hour >= 6 && event_hour <= 9 ? 'morning peak' : event_hour >= 15 && event_hour <= 18 ? 'afternoon peak' : 'other period'};
+set-column :observation_count exp:{1};
+set-type :observation_count long;
+keep :source_observation_id,:date_key,:route_id,:stop_id,:collection_run_id,:trip_id,:headsign,:direction_id,:stop_sequence,:observed_at,:scheduled_departure,:predicted_departure,:delay_seconds,:delay_minutes,:delay_category,:source_delay_category,:time_period,:observation_count;

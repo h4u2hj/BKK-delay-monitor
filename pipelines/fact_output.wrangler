@@ -1,0 +1,1 @@
+keep :source_observation_id,:date_key,:route_key,:stop_key,:collection_run_id,:trip_id,:headsign,:direction_id,:stop_sequence,:observed_at,:scheduled_departure,:predicted_departure,:delay_seconds,:delay_minutes,:delay_category,:source_delay_category,:time_period,:observation_count;

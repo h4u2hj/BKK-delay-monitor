@@ -8,8 +8,8 @@ from typing import Optional, Sequence
 
 from bkk_delays.bkk_api import BkkApiClient
 from bkk_delays.config import AppConfig, load_config
-from bkk_delays.firestore_repository import (
-    FirestoreRepository,
+from bkk_delays.postgresql_repository import (
+    PostgreSQLRepository,
 )
 from bkk_delays.models import MONITORED_STOPS, MonitoredStop
 
@@ -48,15 +48,15 @@ class CollectionSummary:
 def run_collection(
         config: Optional[AppConfig] = None,
         bkk_client: Optional[BkkApiClient] = None,
-        firestore_repository: Optional[FirestoreRepository] = None,
+        postgresql_repository: Optional[PostgreSQLRepository] = None,
         monitored_stops: Sequence[MonitoredStop] = MONITORED_STOPS,
         departure_limit: int = DEFAULT_DEPARTURE_LIMIT,
 ) -> CollectionSummary:
-    """Fetch departures for monitored stops and persist them to Firestore."""
+    """Fetch departures for monitored stops and persist them to PostgreSQL."""
 
     app_config = config or load_config()
     client = bkk_client or BkkApiClient(app_config)
-    repository = firestore_repository or FirestoreRepository(app_config)
+    repository = postgresql_repository or PostgreSQLRepository(app_config)
 
     api_calls_succeeded = 0
     api_calls_failed = 0

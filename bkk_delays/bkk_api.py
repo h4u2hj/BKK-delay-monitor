@@ -68,7 +68,7 @@ class BkkApiClient:
     def get_stop_departures(
             self,
             stop_id: str,
-            limit: int = 10,
+            limit: int = 3,
     ) -> SearchCollectionBatch:
         cleaned_stop_id = stop_id.strip()
         if not cleaned_stop_id:
@@ -127,7 +127,7 @@ class BkkApiClient:
 
 def parse_station_search_results(
         payload: dict[str, Any],
-        limit: int = 8,
+        limit: int = 3,
 ) -> list[StationSearchResult]:
     data = _as_dict(payload.get("data"))
     entry = _as_dict(data.get("entry"))
@@ -161,7 +161,7 @@ def parse_station_search_results(
 def parse_stop_departures(
         payload: dict[str, Any],
         stop_id: str,
-        limit: int = 10,
+        limit: int = 3,
 ) -> SearchCollectionBatch:
     started_at = datetime.now(timezone.utc)
     data = _as_dict(payload.get("data"))

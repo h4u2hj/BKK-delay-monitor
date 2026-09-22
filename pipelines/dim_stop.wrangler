@@ -1,0 +1,9 @@
+copy :id :stop_key;
+copy :id :source_stop_id;
+copy :name :stop_name;
+set-type :stop_key string;
+set-type :source_stop_id string;
+set-type :stop_name string;
+set-type :lat double;
+set-type :lon double;
+keep :stop_key,:source_stop_id,:stop_name,:lat,:lon;

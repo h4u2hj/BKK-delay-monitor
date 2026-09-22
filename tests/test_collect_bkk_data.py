@@ -2,7 +2,6 @@ from datetime import datetime, timezone
 
 from bkk_delays.collect_bkk_data import run_collection
 from bkk_delays.config import AppConfig
-from bkk_delays.firestore_repository import FirestoreSaveSummary
 from bkk_delays.models import (
     CollectionRun,
     DelayObservation,
@@ -11,6 +10,7 @@ from bkk_delays.models import (
     SearchCollectionBatch,
     Stop,
 )
+from bkk_delays.postgresql_repository import PostgreSQLSaveSummary
 
 
 def _config() -> AppConfig:
@@ -18,10 +18,9 @@ def _config() -> AppConfig:
         bkk_api_key="test-key",
         bkk_api_base_url="https://example.test",
         gcp_project_id="test-project",
-        firestore_database_id="",
         bigquery_dataset="bkk_analytics",
         bigquery_table="delay_observations",
-        use_firestore=True,
+        use_postgres=True,
         use_bigquery=False,
     )
 
@@ -67,13 +66,13 @@ def test_run_collection_calls_every_monitored_stop_with_limit_four():
             self.calls.append((stop_id, limit))
             return _batch(stop_id)
 
-    class FakeFirestoreRepository:
+    class FakePostgreSQLRepository:
         def __init__(self):
             self.saved_batches = []
 
         def save_search_collection_batch(self, batch):
             self.saved_batches.append(batch)
-            return FirestoreSaveSummary(
+            return PostgreSQLSaveSummary(
                 enabled=True,
                 routes_saved=1,
                 stops_saved=1,
@@ -82,7 +81,7 @@ def test_run_collection_calls_every_monitored_stop_with_limit_four():
             )
 
     bkk_client = FakeBkkClient()
-    repository = FakeFirestoreRepository()
+    repository = FakePostgreSQLRepository()
     monitored_stops = (
         MonitoredStop("BKK_STOP_1", "First", ("4",), "direction"),
         MonitoredStop("BKK_STOP_2", "Second", ("6",), "direction"),
@@ -92,7 +91,7 @@ def test_run_collection_calls_every_monitored_stop_with_limit_four():
     summary = run_collection(
         config=_config(),
         bkk_client=bkk_client,
-        firestore_repository=repository,
+        postgresql_repository=repository,
         monitored_stops=monitored_stops,
     )
 
@@ -117,9 +116,9 @@ def test_run_collection_continues_after_stop_failure():
                 raise RuntimeError("boom")
             return _batch(stop_id)
 
-    class FakeFirestoreRepository:
+    class FakePostgreSQLRepository:
         def save_search_collection_batch(self, batch):
-            return FirestoreSaveSummary(
+            return PostgreSQLSaveSummary(
                 enabled=True,
                 delay_observations_saved=len(batch.delay_observations),
             )
@@ -127,7 +126,7 @@ def test_run_collection_continues_after_stop_failure():
     summary = run_collection(
         config=_config(),
         bkk_client=FakeBkkClient(),
-        firestore_repository=FakeFirestoreRepository(),
+        postgresql_repository=FakePostgreSQLRepository(),
         monitored_stops=(
             MonitoredStop("BKK_BAD_STOP", "Bad", ("4",), "direction"),
             MonitoredStop("BKK_GOOD_STOP", "Good", ("4",), "direction"),

@@ -301,6 +301,55 @@ h1 {
     font-size: clamp(30px, 4vw, 44px);
 }
 
+.refresh-note {
+    margin: 12px 0 0;
+    color: var(--muted);
+    font-size: 15px;
+}
+
+.statistics-dashboard {
+    display: grid;
+    gap: 24px;
+}
+
+.kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.kpi-card {
+    display: grid;
+    gap: 8px;
+    min-height: 116px;
+    padding: 18px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-left: 4px solid #3b82f6;
+    border-radius: 8px;
+    box-shadow: 0 10px 30px rgba(23, 32, 51, 0.05);
+}
+
+.kpi-card.target-ok {
+    border-left-color: #0f766e;
+}
+
+.kpi-card.target-warning {
+    border-left-color: #d97706;
+}
+
+.kpi-card span {
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.kpi-card strong {
+    align-self: end;
+    font-size: 28px;
+    line-height: 1;
+}
+
 .statistics-grid {
     display: grid;
     gap: 24px;
@@ -315,6 +364,37 @@ h1 {
     margin: 0;
     font-size: 20px;
     letter-spacing: 0;
+}
+
+.bar-cell {
+    display: grid;
+    gap: 8px;
+    min-width: 180px;
+}
+
+.bar-track {
+    display: block;
+    width: 100%;
+    height: 8px;
+    overflow: hidden;
+    background: #e8edf4;
+    border-radius: 999px;
+}
+
+.bar-fill {
+    display: block;
+    width: var(--bar-width);
+    min-width: 3px;
+    height: 100%;
+    background: #0f766e;
+    border-radius: inherit;
+}
+
+.cell-note {
+    display: block;
+    margin-top: 4px;
+    color: var(--muted);
+    font-size: 12px;
 }
 
 .empty-state {
@@ -338,7 +418,7 @@ h1 {
 }
 
 .table-wrap {
-    overflow: hidden;
+    overflow-x: auto;
     background: var(--surface);
     border: 1px solid var(--line);
     border-radius: 8px;
@@ -411,6 +491,22 @@ tr:last-child td {
     .history-page {
         width: min(100% - 28px, 980px);
         padding-top: 42px;
+    }
+
+    .kpi-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .kpi-card {
+        min-height: 104px;
+    }
+
+    .kpi-card strong {
+        font-size: 24px;
+    }
+
+    .table-wrap {
+        overflow-x: auto;
     }
 
     .empty-state {

@@ -6,3 +6,25 @@ __pycache__/
 pytest-cache-files-*/
 .ruff_cache/
 .env
+.env.*
+!.env.example
+
+# Local editor settings and credentials
+.idea/
+.vscode/
+.codex/
+*service-account*.json
+*credentials*.json
+*.pem
+*.key
+
+# Local coursework notes, generated artifacts, and data exports
+/CODING_AGENTS_PLAN.md
+/bkk_data_fusion_bigquery_looker_projektterv.md
+/docs/milestone_*
+/outputs/
+/scripts/
+/cloud-sql-proxy.exe
+/sql/firexport_*.csv
+/sql/02_bigquery_bootstrap_bkktransitapp.sql
+/sql/create_delay_prediction_model.sql

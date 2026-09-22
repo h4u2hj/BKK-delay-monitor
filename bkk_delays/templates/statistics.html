@@ -7,6 +7,7 @@
         <div class="history-header">
             <p class="eyebrow">{{ source_label }}</p>
             <h1 id="statistics-title">4-6 statistics</h1>
+            <p class="refresh-note">Data refreshed every night.</p>
         </div>
 
         {% if statistics_error %}
@@ -19,31 +20,65 @@
             </div>
         {% endif %}
 
-        {% if statistics.predicted_delay_by_station
-            or statistics.average_delay_by_stop
-            or statistics.delayed_ratio_by_period
-            or statistics.most_problematic_stops %}
-            <div class="statistics-grid">
-                {% if statistics.predicted_delay_by_station %}
-                    <section class="statistics-section" aria-labelledby="predicted-delay-title">
-                        <h2 id="predicted-delay-title">Predicted delay now</h2>
+        {% if statistics.has_dashboard_statistics %}
+            {% set summary = statistics.kpi_summary %}
+            <div class="statistics-dashboard">
+                {% if summary %}
+                    <section class="kpi-grid" aria-label="Warehouse KPI summary">
+                        <div class="kpi-card {{ 'target-ok' if summary.avg_delay_minutes < 3 else 'target-warning' }}">
+                            <span>Average delay</span>
+                            <strong>{{ "%.2f"|format(summary.avg_delay_minutes) }} min</strong>
+                        </div>
+                        <div class="kpi-card">
+                            <span>Maximum delay</span>
+                            <strong>{{ "%.2f"|format(summary.max_delay_minutes) }} min</strong>
+                        </div>
+                        <div class="kpi-card">
+                            <span>Observations</span>
+                            <strong>{{ summary.observation_count }}</strong>
+                        </div>
+                        <div class="kpi-card">
+                            <span>Delayed ratio</span>
+                            <strong>{{ "%.1f"|format(summary.delayed_ratio * 100) }}%</strong>
+                        </div>
+                        <div class="kpi-card">
+                            <span>Significant/severe</span>
+                            <strong>{{ summary.significant_or_severe_count }}</strong>
+                        </div>
+                    </section>
+                {% endif %}
+
+                {% if statistics.stop_delay_ranking %}
+                    {% set max_stop_delay = statistics.max_stop_avg_delay_minutes %}
+                    <section class="statistics-section" aria-labelledby="worst-stops-title">
+                        <h2 id="worst-stops-title">Worst stops</h2>
                         <div class="table-wrap">
                             <table>
                                 <thead>
                                 <tr>
                                     <th>Stop</th>
                                     <th>Headsign</th>
-                                    <th>Time</th>
-                                    <th>Predicted delay</th>
+                                    <th>Average delay</th>
+                                    <th>Significant/severe</th>
+                                    <th>Observations</th>
                                 </tr>
                                 </thead>
                                 <tbody>
-                                {% for row in statistics.predicted_delay_by_station %}
+                                {% for row in statistics.stop_delay_ranking %}
+                                    {% set bar_width = (row.avg_delay_minutes / max_stop_delay * 100) if max_stop_delay else 0 %}
                                     <tr>
                                         <td>{{ row.stop_name }}</td>
                                         <td>{{ row.headsign }}</td>
-                                        <td>{{ row.prediction_time.strftime("%H:%M") }}</td>
-                                        <td>{{ "%.1f"|format(row.predicted_delay_seconds) }} s</td>
+                                        <td>
+                                            <div class="bar-cell">
+                                                <span>{{ "%.2f"|format(row.avg_delay_minutes) }} min</span>
+                                                <span class="bar-track" aria-hidden="true">
+                                                    <span class="bar-fill" style="--bar-width: {{ bar_width }}%;"></span>
+                                                </span>
+                                            </div>
+                                        </td>
+                                        <td>{{ row.significant_or_severe_count }}</td>
+                                        <td>{{ row.observation_count }}</td>
                                     </tr>
                                 {% endfor %}
                                 </tbody>
@@ -52,88 +87,176 @@
                     </section>
                 {% endif %}
 
-                <section class="statistics-section" aria-labelledby="avg-delay-stop-title">
-                    <h2 id="avg-delay-stop-title">Average delay by stop</h2>
-                    <div class="table-wrap">
-                        <table>
-                            <thead>
-                            <tr>
-                                <th>Stop</th>
-                                <th>Headsign</th>
-                                <th>Observations</th>
-                                <th>Avg delay</th>
-                            </tr>
-                            </thead>
-                            <tbody>
-                            {% for row in statistics.average_delay_by_stop %}
+                {% if statistics.daily_delay_trend %}
+                    {% set max_daily_delay = statistics.max_daily_avg_delay_minutes %}
+                    <section class="statistics-section" aria-labelledby="daily-trend-title">
+                        <h2 id="daily-trend-title">Daily delay trend</h2>
+                        <div class="table-wrap">
+                            <table>
+                                <thead>
                                 <tr>
-                                    <td>{{ row.stop_name }}</td>
-                                    <td>{{ row.headsign }}</td>
-                                    <td>{{ row.observation_count }}</td>
-                                    <td>{{ "%.1f"|format(row.average_delay_seconds) }} s</td>
+                                    <th>Date</th>
+                                    <th>Tram</th>
+                                    <th>Average delay</th>
+                                    <th>Observations</th>
                                 </tr>
-                            {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                </section>
+                                </thead>
+                                <tbody>
+                                {% for row in statistics.daily_delay_trend %}
+                                    {% set bar_width = (row.avg_delay_minutes / max_daily_delay * 100) if max_daily_delay else 0 %}
+                                    <tr>
+                                        <td>{{ row.calendar_date.isoformat() }}</td>
+                                        <td>{{ row.route_number }}</td>
+                                        <td>
+                                            <div class="bar-cell">
+                                                <span>{{ "%.2f"|format(row.avg_delay_minutes) }} min</span>
+                                                <span class="bar-track" aria-hidden="true">
+                                                    <span class="bar-fill" style="--bar-width: {{ bar_width }}%;"></span>
+                                                </span>
+                                            </div>
+                                        </td>
+                                        <td>{{ row.observation_count }}</td>
+                                    </tr>
+                                {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+                {% endif %}
 
-                <section class="statistics-section" aria-labelledby="period-title">
-                    <h2 id="period-title">Delayed ratio by hour</h2>
-                    <div class="table-wrap">
-                        <table>
-                            <thead>
-                            <tr>
-                                <th>Period</th>
-                                <th>Observations</th>
-                                <th>Delayed</th>
-                                <th>Avg delay</th>
-                                <th>Ratio</th>
-                            </tr>
-                            </thead>
-                            <tbody>
-                            {% for row in statistics.delayed_ratio_by_period %}
+                {% if statistics.merged_hourly_delay_trend %}
+                    {% set max_hourly_delay = statistics.max_hourly_avg_delay_minutes %}
+                    <section class="statistics-section" aria-labelledby="hourly-trend-title">
+                        <h2 id="hourly-trend-title">Hourly delay trend</h2>
+                        <div class="table-wrap">
+                            <table>
+                                <thead>
                                 <tr>
-                                    <td>{{ row.period_start.strftime("%Y-%m-%d %H:%M") }}</td>
-                                    <td>{{ row.observation_count }}</td>
-                                    <td>{{ row.delayed_count }}</td>
-                                    <td>{{ "%.1f"|format(row.average_delay_seconds) }} s</td>
-                                    <td>{{ "%.0f"|format(row.delayed_ratio * 100) }}%</td>
+                                    <th>Observed hour</th>
+                                    <th>Average delay</th>
+                                    <th>Observations</th>
                                 </tr>
-                            {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                </section>
+                                </thead>
+                                <tbody>
+                                {% for row in statistics.merged_hourly_delay_trend %}
+                                    {% set bar_width = (row.avg_delay_minutes / max_hourly_delay * 100) if max_hourly_delay else 0 %}
+                                    <tr>
+                                        <td>{{ "%02d:00"|format(row.observed_hour) }}</td>
+                                        <td>
+                                            <div class="bar-cell">
+                                                <span>{{ "%.2f"|format(row.avg_delay_minutes) }} min</span>
+                                                <span class="bar-track" aria-hidden="true">
+                                                    <span class="bar-fill" style="--bar-width: {{ bar_width }}%;"></span>
+                                                </span>
+                                            </div>
+                                        </td>
+                                        <td>{{ row.observation_count }}</td>
+                                    </tr>
+                                {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+                {% endif %}
 
-                <section class="statistics-section" aria-labelledby="problem-stops-title">
-                    <h2 id="problem-stops-title">Most problematic stops</h2>
-                    <div class="table-wrap">
-                        <table>
-                            <thead>
-                            <tr>
-                                <th>Stop</th>
-                                <th>Headsign</th>
-                                <th>Avg delay</th>
-                                <th>Delayed</th>
-                                <th>Major</th>
-                            </tr>
-                            </thead>
-                            <tbody>
-                            {% for row in statistics.most_problematic_stops %}
+                {% if statistics.delay_category_breakdown %}
+                    {% set max_category_count = statistics.max_category_observation_count %}
+                    <section class="statistics-section" aria-labelledby="category-title">
+                        <h2 id="category-title">Delay categories</h2>
+                        <div class="table-wrap">
+                            <table>
+                                <thead>
                                 <tr>
-                                    <td>{{ row.stop_name }}</td>
-                                    <td>{{ row.headsign }}</td>
-                                    <td>{{ "%.1f"|format(row.average_delay_seconds) }} s</td>
-                                    <td>{{ "%.0f"|format(row.delayed_ratio * 100) }}%</td>
-                                    <td>{{ row.major_delay_count }}</td>
+                                    <th>Category</th>
+                                    <th>Observations</th>
                                 </tr>
-                            {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                </section>
+                                </thead>
+                                <tbody>
+                                {% for row in statistics.delay_category_breakdown %}
+                                    {% set bar_width = (row.observation_count / max_category_count * 100) if max_category_count else 0 %}
+                                    <tr>
+                                        <td>{{ row.delay_category }}</td>
+                                        <td>
+                                            <div class="bar-cell">
+                                                <span>{{ row.observation_count }}</span>
+                                                <span class="bar-track" aria-hidden="true">
+                                                    <span class="bar-fill" style="--bar-width: {{ bar_width }}%;"></span>
+                                                </span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+                {% endif %}
 
+                {% if statistics.time_period_delay_matrix %}
+                    <section class="statistics-section" aria-labelledby="time-period-title">
+                        <h2 id="time-period-title">Time period matrix</h2>
+                        <div class="table-wrap">
+                            <table>
+                                <thead>
+                                <tr>
+                                    <th>Tram</th>
+                                    {% for time_period in statistics.time_period_columns %}
+                                        <th>{{ time_period }}</th>
+                                    {% endfor %}
+                                </tr>
+                                </thead>
+                                <tbody>
+                                {% for route_number in statistics.time_period_route_numbers %}
+                                    <tr>
+                                        <td>{{ route_number }}</td>
+                                        {% for time_period in statistics.time_period_columns %}
+                                            {% set cell = statistics.time_period_value(route_number, time_period) %}
+                                            <td>
+                                                {% if cell %}
+                                                    <strong>{{ "%.2f"|format(cell.avg_delay_minutes) }} min</strong>
+                                                    <span class="cell-note">{{ cell.observation_count }} obs.</span>
+                                                {% else %}
+                                                    <span class="cell-note">-</span>
+                                                {% endif %}
+                                            </td>
+                                        {% endfor %}
+                                    </tr>
+                                {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+                {% endif %}
+            </div>
+        {% elif statistics.has_legacy_statistics %}
+            <div class="statistics-grid">
+                {% if statistics.average_delay_by_stop %}
+                    <section class="statistics-section" aria-labelledby="avg-delay-stop-title">
+                        <h2 id="avg-delay-stop-title">Average delay by stop</h2>
+                        <div class="table-wrap">
+                            <table>
+                                <thead>
+                                <tr>
+                                    <th>Stop</th>
+                                    <th>Headsign</th>
+                                    <th>Observations</th>
+                                    <th>Avg delay</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                {% for row in statistics.average_delay_by_stop %}
+                                    <tr>
+                                        <td>{{ row.stop_name }}</td>
+                                        <td>{{ row.headsign }}</td>
+                                        <td>{{ row.observation_count }}</td>
+                                        <td>{{ "%.1f"|format(row.average_delay_seconds) }} s</td>
+                                    </tr>
+                                {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+                {% endif %}
             </div>
         {% else %}
             <div class="empty-state">

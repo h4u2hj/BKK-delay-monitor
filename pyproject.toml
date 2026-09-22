@@ -1,7 +1,7 @@
 [project]
 name = "bkk-delay-monitor"
 version = "1.0.0"
-description = "A Flask web application for monitoring and analyzing BKK delay observations."
+description = "BKK delay analytics with PostgreSQL, Data Fusion, BigQuery, and Flask."
 authors = [{name = "BKK Delay Monitor Team"}]
 requires-python = ">=3.9"
 dependencies = [
@@ -9,7 +9,7 @@ dependencies = [
     "functions-framework>=3,<4",
     "google-auth>=2.29,<3",
     "google-cloud-bigquery>=3.25,<4",
-    "google-cloud-firestore>=2.16,<3",
+    "psycopg[binary]>=3.2,<4",
     "python-dotenv>=1.0,<2",
     "requests>=2.31,<3",
     "tzdata>=2024.1",

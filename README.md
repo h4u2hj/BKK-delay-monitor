@@ -1,8 +1,50 @@
-# BKK Delay Monitor
+# BKK Delay Data Warehouse
 
-A minimal Flask web application scaffold for a BKK delay monitoring and analytics coursework project.
+An end-to-end data engineering project that turns Budapest public transport observations into an analytical warehouse. Reporting focuses on **trams 4 and 6**: delay patterns by stop, route, day, and time of day.
 
-## Local Setup
+**Stack:** Python / Flask, PostgreSQL, Google Cloud Data Fusion, Wrangler, BigQuery, Looker Studio.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    API["BKK / FUTAR API"] --> APP["Python / Flask"]
+    APP --> PG["PostgreSQL<br/>Operational data"]
+    PG --> DF["Data Fusion<br/>Extract and load"]
+    DF --> RAW["BigQuery<br/>bkk_raw"]
+    RAW --> ETL["Data Fusion<br/>Wrangler + Joiner"]
+    ETL --> DW["BigQuery<br/>Star schema"]
+    DW --> VIEW["Reporting view<br/>Trams 4 and 6"]
+    VIEW --> LS["Looker Studio"]
+    VIEW --> STATS["Flask statistics page"]
+```
+
+## What It Demonstrates
+
+- **Source modeling:** normalized PostgreSQL tables for routes, stops, collection runs, and observations, with duplicate protection during collection.
+- **ETL:** three staging pipelines, two dimension pipelines, and a fact pipeline that transforms raw observations directly with Wrangler and dimension joins.
+- **Warehouse design:** a delay-observation fact table with date, route, and stop dimensions; date partitioning and route/stop clustering in BigQuery.
+- **Analytics:** a shared reporting view powers Looker Studio and the Flask statistics page, covering delay KPIs, stop rankings, trends, and delay categories.
+- **Validation:** the recorded warehouse run produced **4,204 facts**, matching the usable source rows, with no null dimension keys or duplicate dimension keys. This is a project snapshot, not a live metric.
+
+The warehouse and dashboard milestones are complete. Scheduled incremental loading is documented as the next extension; successful scheduled runs have not yet been recorded.
+
+## Explore the Project
+
+| Area | Entry point |
+|---|---|
+| Model, pipeline logic, console setup, and incremental design | [Technical guide](docs/warehouse.md) |
+| Operational database | [PostgreSQL schema](sql/create_postgresql_tables.sql) |
+| Warehouse tables and date dimension | [Warehouse setup](sql/warehouse_setup.sql) |
+| Shared reporting layer | [Dashboard view](sql/dashboard_view.sql) |
+| App analytics | [SQL queries](sql/bigquery_analytics_queries.sql) and [BigQuery repository](bkk_delays/bigquery_repository.py) |
+| Data quality | [Warehouse checks](sql/warehouse_checks.sql) |
+
+The repository contains application code, SQL, and the pipeline build guide. Data Fusion pipelines are configured in the console; deployable pipeline exports and source data are not included.
+
+## Run Locally
+
+Python 3.12+ recommended. From the repository root on Windows:
 
 ```powershell
 python -m venv .venv
@@ -11,101 +53,16 @@ Copy-Item .env.example .env
 .\.venv\Scripts\python -m bkk_delays
 ```
 
-The app is also runnable with Flask:
+Open `http://127.0.0.1:5000`. Set `BKK_API_KEY` in `.env` for live searches. Database integrations are disabled by default; without BigQuery, statistics use the latest search in memory, not warehouse data.
+
+To enable persistence and warehouse analytics, configure PostgreSQL and Google Cloud credentials as described in the [technical guide](docs/warehouse.md#application-configuration). Keep credentials and data exports out of Git.
 
 ```powershell
-.\.venv\Scripts\flask --app bkk_delays.app run --debug
+.\.venv\Scripts\python -m pytest -q
 ```
 
-## Current Features
+Tests cover API parsing, collection, persistence, analytics mapping, and Flask routes using mocked external services. They do not provision or validate a live Google Cloud deployment.
 
-- Search page with live BKK/FUTAR station lookup after more than 3 typed characters.
-- Station selection stores the FUTAR stop ID in the form as `station_id`.
-- Optional Firestore persistence for normalized search collection batches.
-- Optional BigQuery analytics reads from normalized tables.
-- History tab for Firestore-backed observation browsing.
-- Statistics tab backed by BigQuery.
-- Minimal custom CSS with responsive layout.
+## Scope
 
-## Firestore Credentials
-
-Keep `USE_FIRESTORE=false` to use search only. If `USE_FIRESTORE=true`,
-the app uses Google Application Default Credentials for Firestore.
-
-User ADC through gcloud:
-
-```powershell
-gcloud auth application-default login
-```
-
-## Scheduled Cloud Function
-
-The scheduled collector entry point is `collect_bkk_data` in `main.py`. Deploy it
-as a Cloud Run Function with the function name passed as the entry point, not as
-the container command:
-
-```powershell
-gcloud functions deploy collect_bkk_data `
-  --gen2 `
-  --runtime=python312 `
-  --region=europe-west1 `
-  --source=. `
-  --entry-point=collect_bkk_data `
-  --trigger-topic=<pubsub-topic>
-```
-
-If deploying the same source directly as a Cloud Run service, the included
-`Procfile` starts Functions Framework with `collect_bkk_data` as the target.
-Do not set the Cloud Run container command to `collect_bkk_data`; that makes the
-container shell look for an executable with that name and exits with code 127.
-
-For buildpack-based Cloud Run function builds, the function target has to be
-passed through the buildpack environment variable names:
-
-```text
-GOOGLE_FUNCTION_TARGET=collect_bkk_data
-GOOGLE_FUNCTION_SIGNATURE_TYPE=cloudevent
-GOOGLE_FUNCTION_SOURCE=main.py
-GOOGLE_RUNTIME_VERSION=3.14.0
-```
-
-Cloud Build trigger substitutions such as `_FUNCTION_TARGET` are only template
-variables. They do not configure Functions Framework unless the build command
-maps them into the `GOOGLE_FUNCTION_*` build environment variables. The
-repository includes `project.toml` so Google Cloud buildpacks receive these
-settings during remote builds.
-
-## BigQuery Analytics
-
-Keep `USE_BIGQUERY=false` to turn off statistics. The statistics page will then
-not be available. The page is titled `4-6 statistics` and filters analytics to tram 4 and 6 route IDs `BKK_3040`
-and `BKK_3060`. To read analytics from BigQuery, set:
-
-```powershell
-USE_BIGQUERY=true
-GCP_PROJECT_ID=
-BIGQUERY_DATASET=
-```
-
-The repository reads these normalized table names in the configured dataset:
-
-- `routes`
-- `stops`
-- `collection_runs`
-- `delay_observations`
-
-Analytics SQL is kept in `sql/bigquery_analytics_queries.sql`. The Python
-repository only validates table identifiers, renders those table names into the
-queries, binds query parameters, and maps result rows for the statistics page.
-Station-level statistics group by both station and `headsign`, so the same stop
-can appear once per direction. `Újbuda-központ M` and `Móricz Zsigmond körtér M`
-headsigns are grouped together as one direction. The delayed-ratio time period
-statistic is bucketed by scheduled departure time, not by when the prediction was
-searched.
-
-For credentials, the app relies on Application Default Credentials from `gcloud
-auth application-default login` or the runtime environment. The authenticated
-principal needs permission to run BigQuery jobs and read the configured
-dataset/tables for the app's current BigQuery usage. Station search and
-collection do not write to BigQuery; Firestore remains the operational
-persistence path.
+These are sampled departure predictions, not measured arrival times or a complete network-wide punctuality dataset. The warehouse excludes null and negative delays; conclusions therefore apply to the retained observations, not all BKK journeys. This is an independent educational project, not an official BKK service.

@@ -1,0 +1,10 @@
+copy :id :route_key;
+copy :id :source_route_id;
+copy :short_name :route_number;
+set-column :route_name exp:{concat(route_type, ' line ', route_number)};
+set-type :route_key string;
+set-type :source_route_id string;
+set-type :route_number string;
+set-type :route_name string;
+set-type :route_type string;
+keep :route_key,:source_route_id,:route_number,:route_name,:route_type;
